@@ -1,5 +1,6 @@
 (ns mch.opentoken
-  (:require [gloss core io]))
+  (:require [gloss core io])
+  (:require [clojure.data.codec.base64 :as b64]))
 
 (def cipher-suites {:none 0 :aes-256 1 :aes-128 2 :3des-168 3})
 
@@ -23,7 +24,7 @@
   (reduce #(format "%s=%s\r\n%s" (first %2) (second %2) %1) "" payload))
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
-(defn init-hmac [version suite iv key-info payload]
+(defn create-hmac [version suite iv key-info cleartext-payload]
   (let [digester (java.security.MessageDigest/getInstance "SHA-1")]
     (.update digester (byte version))
     (.update digester (byte suite))
@@ -33,15 +34,15 @@
     (if-not (nil? key-info)
       (if (= (type key-info) (type (byte-array 0)))
         (.update digester key-info)))
-    (.update digester (.array (gloss.io/contiguous (gloss.io/encode payload-len-codec {:payload-len (count payload)}))))
-    digester))
-
-(defn update-hmac-with-clear-payload [digester payload]
-  (.update digester (.getBytes payload "utf-8")))
+    (.update digester
+             (.array (gloss.io/contiguous
+                      (gloss.io/encode payload-len-codec {:payload-len (count cleartext-payload)}))))
+    (.update digester (.getBytes cleartext-payload "utf-8"))
+    (.digest digester)))
 
 ;; Use java.util.zip.DeflaterOutputSteam
 (defn deflate [payload]
-  nil)
+  payload)
 
 ;; http://stackoverflow.com/questions/992019/java-256-bit-aes-password-based-encryption
 (defn encrypt-aes [secret salt payload & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
@@ -75,14 +76,18 @@
 (defn encrypt [cipher payload]
   nil)
 
-(defn create-frame [payload]
-  nil)
+(defn create-frame [version cipher-suite hmac iv key-info payload]
+  (.array (gloss.io/contiguous (gloss.io/encode opentoken {:otk "OTK" :version 1 :cipher-suite 1
+                                                           :hmac hmac :iv iv :key-info nil
+                                                           :payload payload}))))
 
-(defn base64encode [data]
-  nil)
+(defn make-cookie-safe [s]
+  "Makes a string cookie safe by changing = to *"
+  (apply str (map #(if (= \= %) \* %) (String. (b64/encode (.getBytes s)) "UTF-8"))))
 
-(defn replace-padding [base64data]
-  nil)
+(defn revert-cookie-safety [s]
+  "Reverts cookie safety by changing * to ="
+  (apply str (map #(if (= \* %) \= %) (String. (b64/encode (.getBytes s)) "UTF-8"))))
 
 (defn encode [payload secret & {:keys [cipher salt] :or {cipher :none salt nil}}]
   "Returns a string representing the encrypted OpenToken."
@@ -90,14 +95,14 @@
     (throw (java.lang.IllegalArgumentException. "Payload must be a map.")))
   (if-not (contains? cipher-suites cipher)
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
-  nil)
-;  (->> payload
-;       (stringify-payload)
-;       (init-hmac)
-;       (update-hmac-with-clear-payload)
-;       (deflate)
-;       (encrypt)
-;       (create-frame 1 1 
+  (let [cleartext-payload (stringify-payload payload)
+        compressed-cleartext (deflate cleartext-payload)
+        encryptor (fn [payload] (encrypt-aes secret salt payload))
+        {:keys [ciphertext iv]} (encryptor compressed-cleartext)
+        hmac (create-hmac 1 1 iv nil cleartext-payload)
+        bin (create-frame 1 1 hmac iv nil ciphertext)
+        b64token (String. (b64/encode bin) "UTF-8")]
+    (make-cookie-safe b64token)))
 
 (defn decode [token secret & {:keys [cipher salt] :or {cipher :aes-256}}]
   "Decodes a OpenToken. Will throw an exception if the token is invalid."
