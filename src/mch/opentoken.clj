@@ -44,32 +44,34 @@
   nil)
 
 ;; http://stackoverflow.com/questions/992019/java-256-bit-aes-password-based-encryption
-(defn encrypt-aes [secret salt payload & {:keys [key-length] :or {key-length 256}}]
-  (if-not (string? secret) (throw (.IllegalArgumentException "Secret must be a string.")))
-  (if-not (string? salt) (throw (.IllegalArgumentException "Salt must be a string.")))
-  (let [key-factory (javax.crypto.SecretKeyFactory/getInstance "PBKDF2WithHmacSHA1")
+(defn encrypt-aes [secret salt payload & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
+  (if-not (string? secret) (throw (IllegalArgumentException. "Secret must be a string.")))
+  (if-not (string? salt) (throw (IllegalArgumentException. "Salt must be a string.")))
+  (if-not (contains? #{"AES" "DESede"} cipher-name) (throw (IllegalArgumentException. ":cipher-name must be \"AES\" or \"DES\"")))
+  (let [pbe-name (if (= cipher-name "AES") "PBKDF2WithHmacSHA1" "PBEWithHmacSHA1AndDESede")
+        key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
         key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray secret) (.getBytes salt) 65536 key-length)
-        key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "AES")
-        cipher (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding")
+        key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) cipher-name)
+        cipher (javax.crypto.Cipher/getInstance (str cipher-name "/CBC/PKCS5Padding"))
         _ (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key)
         params (.getParameters cipher)
         iv (.getIV (.getParameterSpec params javax.crypto.spec.IvParameterSpec))
         ciphertext (.doFinal cipher (.getBytes payload "UTF-8"))]
     {:iv iv :ciphertext ciphertext}))
 
-(defn decrypt-aes [secret salt iv ciphertext & {:keys [key-length] :or {key-length 256}}]
-  (if-not (string? secret) (throw (.IllegalArgumentException "Secret must be a string.")))
-  (if-not (string? salt) (throw (.IllegalArgumentException "Salt must be a string.")))
-  (let [key-factory (javax.crypto.SecretKeyFactory/getInstance "PBKDF2WithHmacSHA1")
+(defn decrypt-aes [secret salt iv ciphertext & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
+  (if-not (string? secret) (throw (IllegalArgumentException. "Secret must be a string.")))
+  (if-not (string? salt) (throw (IllegalArgumentException. "Salt must be a string.")))
+  (if-not (contains? #{"AES" "DESede"} cipher-name) (throw (IllegalArgumentException. ":cipher-name must be \"AES\" or \"DESede\"")))
+  (let [pbe-name (if (= cipher-name "AES") "PBKDF2WithHmacSHA1" "PBEWithHmacSHA1AndDESede")
+        key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
         key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray secret) (.getBytes salt) 65536 key-length)
         key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "AES")
-        cipher (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding")
-        _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key (IvParameterSpec. iv))
+        cipher (javax.crypto.Cipher/getInstance (str cipher-name "/CBC/PKCS5Padding"))
+        _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
         plaintext (String. (.doFinal cipher ciphertext) "UTF-8")]
     plaintext))
 
-
-        
 (defn encrypt [cipher payload]
   nil)
 
