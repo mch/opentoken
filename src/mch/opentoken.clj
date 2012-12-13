@@ -1,4 +1,5 @@
 (ns mch.opentoken
+  "Implements the OpenToken specification: http://tools.ietf.org/html/draft-smith-opentoken-02"
   (:require [gloss core io])
   (:require [clojure.data.codec.base64 :as b64]))
 
