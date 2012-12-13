@@ -1,4 +1,4 @@
-opentoken
+OpenToken
 =========
 
-A Clojure implementation of OpenToken
+A Clojure implementation of [OpenToken|http://tools.ietf.org/html/draft-smith-opentoken-02].
