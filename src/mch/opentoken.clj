@@ -41,9 +41,21 @@
     (.update digester (.getBytes cleartext-payload "utf-8"))
     (.digest digester)))
 
-;; Use java.util.zip.DeflaterOutputSteam
-(defn deflate [payload]
-  payload)
+(defn deflate [input]
+  (let [out (java.io.ByteArrayOutputStream.)
+        deflater (java.util.zip.DeflaterOutputStream. out)]
+    (doto deflater
+      (.write input 0 (count input))
+      (.close))
+    (.toByteArray out)))
+
+(defn inflate [input]
+  (let [out (java.io.ByteArrayOutputStream.)
+        inflater (java.util.zip.InflaterOutputStream. out)]
+    (doto inflater
+      (.write input 0 (count input))
+      (.close))
+    (.toByteArray out)))
 
 ;; http://stackoverflow.com/questions/992019/java-256-bit-aes-password-based-encryption
 (defn encrypt-aes [secret salt payload & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
