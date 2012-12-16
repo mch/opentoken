@@ -91,8 +91,8 @@
       (is (= "234ads***" safe))
       (is (= output input)))))
           
-(deftest encrypt-with-password
-  (testing "Password and salt based AES 256 encryption"
+(deftest encrypt-decrypt
+  (testing "AES 256 encryption and decryption"
     (let [cipher :aes-256
           password "secret"
           salt "12345"
@@ -111,7 +111,8 @@
                                         :iv (:iv ciphertext1))))))
       (is (= (seq (:ciphertext ciphertext2))
              (seq (:ciphertext (encrypt cleartext-b :cipher cipher :key key
-                                        :iv (:iv ciphertext2)))))))))
+                                        :iv (:iv ciphertext2))))))
+      (is (= (seq cleartext-b) (seq (decrypt (:ciphertext ciphertext1) :iv (:iv ciphertext1) :password password :salt salt)))))))
 
       
           

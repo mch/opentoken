@@ -74,9 +74,20 @@
             (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv)))
         params (.getParameters cipher)
         iv (.getIV cipher)
-        ;iv (.getIV (.getParameterSpec params javax.crypto.spec.IvParameterSpec)) ; or just (.getIV cipher)?
         ciphertext (.doFinal cipher cleartext)]
     {:iv iv :ciphertext ciphertext}))
+
+(defn decrypt-des [ciphertext key iv]
+  (let [cipher (javax.crypto.Cipher/getInstance "DESede/CBC/PKCS5Padding")
+        _ (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
+        cleartext (.doFinal cipher ciphertext)]
+    cleartext))
+
+(defn decrypt-aes [ciphertext key iv]
+  (let [cipher (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding")
+        _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
+        cleartext (.doFinal cipher ciphertext)]
+    cleartext))
 
 (defn make-aes-key [key-len password salt]
   (let [s (if (string? salt) (.getBytes salt "UTF-8") salt)
@@ -118,23 +129,19 @@
               (contains? #{:aes-256 :aes-128} cipher) (encrypt-aes c k iv)
               (= cipher :3des-168) (encrypt-des c k iv))))
 
-(defn decrypt-aes [secret salt iv ciphertext & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
-  (if-not (string? secret) (throw (IllegalArgumentException. "Secret must be a string.")))
-  (if-not (string? salt) (throw (IllegalArgumentException. "Salt must be a string.")))
-  (if-not (contains? #{"AES" "DESede"} cipher-name) (throw (IllegalArgumentException. ":cipher-name must be \"AES\" or \"DESede\"")))
-  (let [pbe-name (if (= cipher-name "AES") "PBKDF2WithHmacSHA1" "PBEWithHmacSHA1AndDESede")
-        key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
-        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray secret) (.getBytes salt) 65536 key-length)
-        key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "AES")
-        cipher (javax.crypto.Cipher/getInstance (str cipher-name "/CBC/PKCS5Padding"))
-        _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
-        plaintext (String. (.doFinal cipher ciphertext) "UTF-8")]
-    plaintext))
+(defn decrypt [ciphertext & {:keys [cipher password salt key iv]
+                             :or {cipher :aes-256 password "" salt nil key nil iv nil}}]
+  (if-not (contains? cipher-suites cipher)
+    (throw (IllegalArgumentException. "Invalid cipher.")))
+  (let [k (if-not (nil? key)
+            (make-key-from-ba cipher key)
+            (make-key cipher password salt))]
+    (cond (= cipher :none) ciphertext
+          (contains? #{:aes-256 :aes-128} cipher) (decrypt-aes ciphertext k iv)
+          (= cipher :3des-168) (decrypt-des ciphertext k iv))))
 
 (defn create-frame [version cipher-suite hmac iv key-info payload]
-  (.array (gloss.io/contiguous (gloss.io/encode opentoken {:otk "OTK" :version 1 :cipher-suite 1
-                                                           :hmac hmac :iv iv :key-info nil
-                                                           :payload payload}))))
+  (.array (gloss.io/contiguous (gloss.io/encode opentoken ["OTK" 1 1 hmac iv nil payload]))))
 
 (defn decode-frame [token]
   (gloss.io/decode opentoken token))
@@ -171,12 +178,13 @@
   "Decodes a OpenToken. Will throw an exception if the token is invalid."
   (if-not (contains? cipher-suites cipher)
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
-  (-> token
-      (revert-cookie-safety)
-      (.getBytes "UTF-8")
-      (b64/decode)
-      (validate-token)
-      (decode-frame)))
+  (let [tbytes (-> token
+                   (revert-cookie-safety)
+                   (.getBytes "UTF-8")
+                   (b64/decode)
+                   (validate-token)
+                   (decode-frame))]
+    tbytes))
       ;; (decrypt-frame-payload)
       ;; (decompress-frame-payload)
       ;; (check-hash)
