@@ -57,21 +57,58 @@
       (.close))
     (.toByteArray out)))
 
-;; http://stackoverflow.com/questions/992019/java-256-bit-aes-password-based-encryption
-(defn encrypt-aes [secret salt payload & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
-  (if-not (string? secret) (throw (IllegalArgumentException. "Secret must be a string.")))
-  (if-not (string? salt) (throw (IllegalArgumentException. "Salt must be a string.")))
-  (if-not (contains? #{"AES" "DESede"} cipher-name) (throw (IllegalArgumentException. ":cipher-name must be \"AES\" or \"DES\"")))
-  (let [pbe-name (if (= cipher-name "AES") "PBKDF2WithHmacSHA1" "PBEWithHmacSHA1AndDESede")
-        key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
-        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray secret) (.getBytes salt) 65536 key-length)
-        key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) cipher-name)
-        cipher (javax.crypto.Cipher/getInstance (str cipher-name "/CBC/PKCS5Padding"))
+(defn encrypt-des [cleartext key iv]
+  (let [cipher (javax.crypto.Cipher/getInstance "DESede/CBC/PKCS5Padding")
         _ (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key)
         params (.getParameters cipher)
         iv (.getIV (.getParameterSpec params javax.crypto.spec.IvParameterSpec))
-        ciphertext (.doFinal cipher (.getBytes payload "UTF-8"))]
+        ciphertext (.doFinal cipher cleartext)]
     {:iv iv :ciphertext ciphertext}))
+
+(defn encrypt-aes [cleartext key iv]
+  (let [cipher (javax.crypto.Cipher/getInstance "AES/CBC/PKCS5Padding")
+        _ (if (nil? iv)
+            (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key)
+            (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv)))
+        params (.getParameters cipher)
+        iv (.getIV cipher)
+        ;iv (.getIV (.getParameterSpec params javax.crypto.spec.IvParameterSpec)) ; or just (.getIV cipher)?
+        ciphertext (.doFinal cipher cleartext)]
+    {:iv iv :ciphertext ciphertext}))
+
+(defn make-aes-key [key-len password salt]
+  (let [s (if (string? salt) (.getBytes salt "UTF-8") salt)
+        pbe-name "PBKDF2WithHmacSHA1"
+        key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
+        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray password) s 65536 key-len)
+        key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "AES")]
+    key))
+
+(defn make-3des-key [key-len password salt]
+  (let [s (if (string? salt) (.getBytes salt "UTF-8") salt)
+        pbe-name "PBEWithHmacSHA1AndDESede"
+        key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
+        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray password) s 65536 key-len)
+        key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "DESede")]
+    key))
+
+(defn make-key [cipher password salt]
+  (cond (= cipher :none) (byte-array 1 (byte 1))
+        (= cipher :aes-256) (make-aes-key 256 password salt)
+        (= cipher :aes-128) (make-aes-key 128 password salt)
+        (= cipher :3des-168) (make-3des-key 168 password salt)
+        :else (throw (IllegalArgumentException. "Invalid cipher."))))
+
+
+(defn encrypt [cleartext & {:keys [cipher password salt key iv]
+                            :or {cipher :aes-256 password "" salt nil key nil iv nil}}]
+  (if-not (contains? cipher-suites cipher)
+    (throw (IllegalArgumentException. "Invalid cipher.")))
+  (let [k (if-not (nil? key) key (make-key cipher password salt))
+        c (if (string? cleartext) (.getBytes cleartext "UTF-8") cleartext)]
+        (cond (= cipher :none) c
+              (contains? #{:aes-256 :aes-128} cipher) (encrypt-aes c k iv)
+              (= cipher :3des-168) (encrypt-des c k iv))))
 
 (defn decrypt-aes [secret salt iv ciphertext & {:keys [cipher-name key-length] :or {cipher-name "AES" key-length 256}}]
   (if-not (string? secret) (throw (IllegalArgumentException. "Secret must be a string.")))
@@ -86,9 +123,6 @@
         plaintext (String. (.doFinal cipher ciphertext) "UTF-8")]
     plaintext))
 
-(defn encrypt [cipher payload]
-  nil)
-
 (defn create-frame [version cipher-suite hmac iv key-info payload]
   (.array (gloss.io/contiguous (gloss.io/encode opentoken {:otk "OTK" :version 1 :cipher-suite 1
                                                            :hmac hmac :iv iv :key-info nil
@@ -96,20 +130,20 @@
 
 (defn make-cookie-safe [s]
   "Makes a string cookie safe by changing = to *"
-  (apply str (map #(if (= \= %) \* %) (String. (b64/encode (.getBytes s)) "UTF-8"))))
+  (apply str (map #(if (= \= %) \* %) s)))
 
 (defn revert-cookie-safety [s]
   "Reverts cookie safety by changing * to ="
-  (apply str (map #(if (= \* %) \= %) (String. (b64/encode (.getBytes s)) "UTF-8"))))
+  (apply str (map #(if (= \* %) \= %) s)))
 
-(defn encode [payload secret & {:keys [cipher salt] :or {cipher :none salt nil}}]
+(defn encode [payload secret & {:keys [cipher salt] :or {cipher :none salt ""}}]
   "Returns a string representing the encrypted OpenToken."
   (if-not (map? payload)
     (throw (java.lang.IllegalArgumentException. "Payload must be a map.")))
   (if-not (contains? cipher-suites cipher)
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
   (let [cleartext-payload (stringify-payload payload)
-        compressed-cleartext (deflate cleartext-payload)
+        compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
         encryptor (fn [payload] (encrypt-aes secret salt payload))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
         hmac (create-hmac 1 1 iv nil cleartext-payload)
