@@ -1,6 +1,7 @@
 (ns mch.opentoken-test
   (:use clojure.test
-        mch.opentoken))
+        mch.opentoken)
+  (:require [clojure.data.codec.base64 :as b64]))
 
 (def test {:otk "OTK"
            :version 1
@@ -11,27 +12,27 @@
 
 (def expected {"foo" "bar" "bar" "baz"})
 
-;; (deftest aes-128
-;;   (testing "AES-128 decoding"
-;;     (let [cipher :aes-128
-;;           key "a66C9MvM8eY4qJKyCXKW+w=="
-;;           token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"]
-;;       (is (= (decode token key :cipher cipher) expected)))))
+(deftest aes-128
+  (testing "AES-128 decoding"
+    (let [cipher :aes-128
+          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
+          token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"]
+      (is (= token (encode expected :key key :cipher cipher))))))
 
-;; (deftest aes-256
-;;   (testing "AES-256 encoding and decoding"
-;;     (let [cipher :aes-256
-;;           key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc="
-;;           token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"]
-;;       (is (= token (encode expected key :cipher cipher)))
-;;       (is (= (decode token key :cipher cipher) expected)))))
+(deftest aes-256
+  (testing "AES-256 encoding and decoding"
+    (let [cipher :aes-256
+          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"]
+      (is (= token (encode expected :key key :cipher cipher))))))
+      ;(is (= (decode token key :cipher cipher) expected)))))
 
-;; (deftest threedes-168
-;;   (testing "3DES-168 decoding"
-;;     (let [cipher :3des-168
-;;           key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th"
-;;           token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"]
-;;       (is (= (decode token key :cipher cipher) expected)))))
+(deftest threedes-168
+  (testing "3DES-168 decoding"
+    (let [cipher :3des-168
+          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th" "UTF-8"))
+          token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"]
+      (is (= token (encode expected :key key :cipher cipher))))))
 
 ;; (deftest multi-value
 ;;   (testing "that keys with multiple values return a list of values")
@@ -96,16 +97,24 @@
           password "secret"
           salt "12345"
           salt-b (.getBytes "12345" "UTF-8")
-          key (byte-array 10 (byte 34))
+          key (byte-array 32 (byte 34)) ; 256 bits
           cleartext "Hi everyone."
           cleartext-b (.getBytes cleartext "UTF-8")
           ciphertext1 (encrypt cleartext :cipher cipher :password password :salt salt)
-                                        ;ciphertext2 (encrypt cleartext :cipher cipher :key key)
-          ]
+          ciphertext2 (encrypt cleartext :cipher cipher :key key)]
       (println (seq (:ciphertext ciphertext1)))
-      (is (= (seq (:ciphertext ciphertext1)) (seq (:ciphertext (encrypt cleartext  :cipher cipher :password password :salt salt-b :iv (:iv ciphertext1))))))
-      (is (= (seq (:ciphertext ciphertext1)) (seq (:ciphertext (encrypt cleartext-b  :cipher cipher :password password :salt salt :iv (:iv ciphertext1))))))
-      ;;(is (= (seq ciphertext2) (seq (encrypt :cipher cipher key cleartext)))))))
-      )))
+      (is (= (seq (:ciphertext ciphertext1))
+             (seq (:ciphertext (encrypt cleartext  :cipher cipher :password password :salt salt-b
+                                        :iv (:iv ciphertext1))))))
+      (is (= (seq (:ciphertext ciphertext1))
+             (seq (:ciphertext (encrypt cleartext-b  :cipher cipher :password password :salt salt
+                                        :iv (:iv ciphertext1))))))
+      (is (= (seq (:ciphertext ciphertext2))
+             (seq (:ciphertext (encrypt cleartext-b :cipher cipher :key key
+                                        :iv (:iv ciphertext2)))))))))
+
       
           
+(deftest validate-token-test
+  (testing "token validation"
+    (is (= 0 1))))

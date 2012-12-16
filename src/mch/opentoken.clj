@@ -5,13 +5,15 @@
 
 (def cipher-suites {:none 0 :aes-256 1 :aes-128 2 :3des-168 3})
 
-(def opentoken-frame {:otk (gloss.core/string :utf-8 :length 3)
-                      :version :byte
-                      :cipher-suite :byte
-                      :hmac (gloss.core/finite-block 20)
-                      :iv (gloss.core/finite-block :byte)
-                      :key-info (gloss.core/finite-block :byte)
-                      :payload (gloss.core/finite-block :int16)})
+(def opentoken-frame [(gloss.core/string :utf-8 :length 3)
+                      :byte
+                      :byte
+                      (gloss.core/finite-block 20)
+                      (gloss.core/finite-block :byte)
+                      (gloss.core/finite-block :byte)
+                      (gloss.core/finite-block :int16)])
+
+(def opentoken-frame-keys [:otk :version :cipher-suite :hmac :iv :key-info :payload])
 
 (gloss.core/defcodec opentoken opentoken-frame)
 
@@ -99,12 +101,18 @@
         (= cipher :3des-168) (make-3des-key 168 password salt)
         :else (throw (IllegalArgumentException. "Invalid cipher."))))
 
+(defn make-key-from-ba [cipher key]
+  (cond (= cipher :aes-256) (javax.crypto.spec.SecretKeySpec. key 0 (count key) "AES")
+        (= cipher :aes-128) (javax.crypto.spec.SecretKeySpec. key 0 (count key) "AES")
+        (= cipher :3des-168) (javax.crypto.spec.SecretKeySpec. key 0 (count key) "DESede")))
 
 (defn encrypt [cleartext & {:keys [cipher password salt key iv]
                             :or {cipher :aes-256 password "" salt nil key nil iv nil}}]
   (if-not (contains? cipher-suites cipher)
     (throw (IllegalArgumentException. "Invalid cipher.")))
-  (let [k (if-not (nil? key) key (make-key cipher password salt))
+  (let [k (if-not (nil? key)
+            (make-key-from-ba cipher key)
+            (make-key cipher password salt))
         c (if (string? cleartext) (.getBytes cleartext "UTF-8") cleartext)]
         (cond (= cipher :none) c
               (contains? #{:aes-256 :aes-128} cipher) (encrypt-aes c k iv)
@@ -128,6 +136,9 @@
                                                            :hmac hmac :iv iv :key-info nil
                                                            :payload payload}))))
 
+(defn decode-frame [token]
+  (gloss.io/decode opentoken token))
+
 (defn make-cookie-safe [s]
   "Makes a string cookie safe by changing = to *"
   (apply str (map #(if (= \= %) \* %) s)))
@@ -136,7 +147,7 @@
   "Reverts cookie safety by changing * to ="
   (apply str (map #(if (= \* %) \= %) s)))
 
-(defn encode [payload secret & {:keys [cipher salt] :or {cipher :none salt ""}}]
+(defn encode [payload & {:keys [cipher password salt key] :or {cipher :none password nil salt nil key nil}}]
   "Returns a string representing the encrypted OpenToken."
   (if-not (map? payload)
     (throw (java.lang.IllegalArgumentException. "Payload must be a map.")))
@@ -144,13 +155,29 @@
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
   (let [cleartext-payload (stringify-payload payload)
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
-        encryptor (fn [payload] (encrypt-aes secret salt payload))
+        encryptor (fn [payload] (encrypt payload :password password :salt salt :key key))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
         hmac (create-hmac 1 1 iv nil cleartext-payload)
         bin (create-frame 1 1 hmac iv nil ciphertext)
         b64token (String. (b64/encode bin) "UTF-8")]
     (make-cookie-safe b64token)))
 
-(defn decode [token secret & {:keys [cipher salt] :or {cipher :aes-256}}]
+(defn validate-token [token]
+  "Validates OTK literal and version."
+  token)
+
+(defn decode [token & {:keys [cipher password salt key]
+                       :or {cipher :aes-256 password nil salt nil key nil}}]
   "Decodes a OpenToken. Will throw an exception if the token is invalid."
-  nil)
+  (if-not (contains? cipher-suites cipher)
+    (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
+  (-> token
+      (revert-cookie-safety)
+      (.getBytes "UTF-8")
+      (b64/decode)
+      (validate-token)
+      (decode-frame)))
+      ;; (decrypt-frame-payload)
+      ;; (decompress-frame-payload)
+      ;; (check-hash)
+      ;; (payload-to-map)))
