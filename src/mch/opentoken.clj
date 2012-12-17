@@ -21,10 +21,15 @@
   
 (gloss.core/defcodec payload-len-codec payload-len-frame)
 
-(defn stringify-payload [payload]
+(defn map-to-string [m]
   "Converts a map to a OpenToken payload string."
-  {:pre [(map? payload)]}
-  (reduce #(format "%s=%s\r\n%s" (first %2) (second %2) %1) "" payload))
+  {:pre [(map? m)]}
+  (reduce #(format "%s=%s\r\n%s" (first %2) (second %2) %1) "" m))
+
+(defn string-to-map [s]
+  "Converts a OpenToken string to a Clojure map, where the value is a vector,
+since OpenToken allows for multiple values per key."
+  {})
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
 (defn create-hmac [version suite iv key-info cleartext-payload]
