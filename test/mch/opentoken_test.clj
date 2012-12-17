@@ -3,45 +3,57 @@
         mch.opentoken)
   (:require [clojure.data.codec.base64 :as b64]))
 
-(def test {:otk "OTK"
-           :version 1
-           :cipher-suite 0
-           :iv nil
-           :key-info nil
-           :payload "foo=bar\r\nbar=baz"})
+(def test-token-data {:otk "OTK"
+                      :version 1
+                      :cipher-suite 0
+                      :iv nil
+                      :key-info nil
+                      :payload "foo=bar\r\nbar=baz"})
 
 (def expected {"foo" "bar" "bar" "baz"})
 
-(deftest aes-128
-  (testing "AES-128 decoding"
-    (let [cipher :aes-128
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
-          token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"]
-      (is (= token (encode expected :key key :cipher cipher))))))
+;; (deftest aes-128
+;;   (testing "AES-128 decoding"
+;;     (let [cipher :aes-128
+;;           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
+;;           token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"
+;;           token-parts (decode-token token)
+;;           iv (:iv token-parts)]
+;;       (is (= token (encode expected :key key :cipher cipher :iv iv))))))
 
 (deftest aes-256
   (testing "AES-256 encoding and decoding"
     (let [cipher :aes-256
           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
-          token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"]
-      (is (= token (encode expected :key key :cipher cipher))))))
+          token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"
+          token-parts (decode-token token)
+          iv (:iv token-parts)
+          ki (:key-info token-parts)]
+      (println (format "aes-256 iv: %s" (.toString (BigInteger. 1 iv) 16)))
+      (println token-parts)
+      (is (= token (encode expected :key key :cipher cipher :iv iv))))))
       ;(is (= (decode token key :cipher cipher) expected)))))
 
-(deftest threedes-168
-  (testing "3DES-168 decoding"
-    (let [cipher :3des-168
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th" "UTF-8"))
-          token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"]
-      (is (= token (encode expected :key key :cipher cipher))))))
+;; (deftest threedes-168
+;;   (testing "3DES-168 decoding"
+;;     (let [cipher :3des-168
+;;           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th" "UTF-8"))
+;;           token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"
+;;           token-parts (decode-token token)
+;;           iv (:iv token-parts)]          
+;;       (is (= token (encode expected :key key :cipher cipher :iv iv))))))
 
-;; (deftest multi-value
-;;   (testing "that keys with multiple values return a list of values")
-;;   (is (= 0 1)))
-
-(deftest stringify-map-test
+(deftest map-to-string-test
   (testing "that maps are converted to OpenToken formatted strings"
     (let [m {"foo" "bar" "baz" "quux"}]
-      (is (= "baz=quux\r\nfoo=bar\r\n" (stringify-payload m))))))
+      (is (= "baz=quux\r\nfoo=bar\r\n" (map-to-string m))))))
+
+(deftest string-to-map-test
+  (testing "that OpenToken strings can be converted to maps."
+    (let [s1 "bar=baz\r\nfoo=bar\r\n"
+          s2 "bar=baz\r\nfoo=bar\r\nbar=quux\r\n"]
+      (is (= {"bar" ["baz"] "foo" ["bar"]} (string-to-map s1)))
+      (is (= {"bar" ["baz" "quux"] "foo" ["bar"]} (string-to-map s2))))))
 
 (deftest deflate-test
   (testing "DEFLATE"
@@ -102,7 +114,6 @@
           cleartext-b (.getBytes cleartext "UTF-8")
           ciphertext1 (encrypt cleartext :cipher cipher :password password :salt salt)
           ciphertext2 (encrypt cleartext :cipher cipher :key key)]
-      (println (seq (:ciphertext ciphertext1)))
       (is (= (seq (:ciphertext ciphertext1))
              (seq (:ciphertext (encrypt cleartext  :cipher cipher :password password :salt salt-b
                                         :iv (:iv ciphertext1))))))
