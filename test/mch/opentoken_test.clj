@@ -114,8 +114,25 @@
                                         :iv (:iv ciphertext2))))))
       (is (= (seq cleartext-b) (seq (decrypt (:ciphertext ciphertext1) :iv (:iv ciphertext1) :password password :salt salt)))))))
 
-      
-          
+;; (deftest validate-token-type-test
+;;   (testing "token has valid header, version and cipher."
+;;     (let [cleartext "foo=bar\r\nbar=baz\r\n"
+;;           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+;;           token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))
+;;           broken-version (assoc token :version 0)
+;;           broken-header (assoc token :otk "PTK")
+;;           broken-cipher (assoc token :cipher-suite 4)]
+;;       (is (validate-token-type token))
+;;       (is (not validate-token-type broken-cipher))
+;;       (is (not validate-token-type broken-version))
+;;       (is (not validate-token-type broken-header)))))
+
+    
+
 (deftest validate-token-test
-  (testing "token validation"
-    (is (= 0 1))))
+  (testing "token has correct hmac"
+    (let [cleartext "bar=baz\r\nfoo=bar\r\n"
+          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))]
+      (is (validate-token token cleartext))
+      (is (not (validate-token token (str cleartext "A")))))))
