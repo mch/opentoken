@@ -159,38 +159,69 @@ since OpenToken allows for multiple values per key."
   "Reverts cookie safety by changing * to ="
   (apply str (map #(if (= \* %) \= %) s)))
 
-(defn encode [payload & {:keys [cipher password salt key] :or {cipher :none password nil salt nil key nil}}]
+(defn encode [payload & {:keys [cipher password salt key iv] :or {cipher :none password nil salt nil key nil iv nil}}]
   "Returns a string representing the encrypted OpenToken."
   (if-not (map? payload)
     (throw (java.lang.IllegalArgumentException. "Payload must be a map.")))
   (if-not (contains? cipher-suites cipher)
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
-  (let [cleartext-payload (stringify-payload payload)
+  (let [cleartext-payload (map-to-string payload)
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
-        encryptor (fn [payload] (encrypt payload :password password :salt salt :key key))
+        encryptor (fn [payload] (encrypt payload :password password :salt salt :key key :iv iv))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
         hmac (create-hmac 1 1 iv nil cleartext-payload)
         bin (create-frame 1 1 hmac iv nil ciphertext)
         b64token (String. (b64/encode bin) "UTF-8")]
     (make-cookie-safe b64token)))
 
-(defn validate-token [token]
+(defn validate-token [token cleartext]
   "Validates OTK literal and version."
-  token)
+  (let [hmac (create-hmac (:version token)
+                          (:cipher-suite token)
+                          (:iv token)
+                          (:key-info token)
+                          cleartext)]
+    (= (seq hmac) (seq (:hmac token)))))
 
-(defn decode [token & {:keys [cipher password salt key]
-                       :or {cipher :aes-256 password nil salt nil key nil}}]
-  "Decodes a OpenToken. Will throw an exception if the token is invalid."
-  (if-not (contains? cipher-suites cipher)
-    (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
+(defn buffer-to-array [b]
+  (if (nil? b)
+    b
+    (let [in (first b)
+          l (.limit in)
+          out (byte-array l)]
+      (.get in out 0 l)
+      out)))
+
+(defn decode-token [token & {:keys [cipher password salt key]
+                             :or {cipher :aes-256 password nil salt nil key nil}}]
+  "Decodes a OpenToken, returning a map of OpenToken components.
+Does not decrypt or validate the token."
   (let [tbytes (-> token
                    (revert-cookie-safety)
                    (.getBytes "UTF-8")
                    (b64/decode)
-                   (validate-token)
-                   (decode-frame))]
-    tbytes))
-      ;; (decrypt-frame-payload)
-      ;; (decompress-frame-payload)
+                   (decode-frame))
+        frame (apply hash-map (interleave opentoken-frame-keys tbytes))]
+    (assoc frame
+      :hmac (buffer-to-array (:hmac frame))
+      :iv (buffer-to-array (:iv frame))
+      :key-info (buffer-to-array (:key-info frame))
+      :payload (buffer-to-array (:payload frame)))))
+
+(defn decrypt-token [token & {:keys [cipher password salt key]
+                              :or {cipher :aes-256 password nil salt nil key nil}}]
+  "Decrypts an OpenToken, returning a map of the key-value pairs in the payload of the token.
+If the token is invalid..."
+  (if-not (contains? cipher-suites cipher)
+    (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
+  (let [t (if (string? token) (decode-token token) token)
+        cleartext (inflate (decrypt (:payload t)
+                                    :cipher cipher
+                                    :password password
+                                    :salt salt
+                                    :key key
+                                    :iv (:iv t)))
+        valid (validate-token t cleartext)]
+    {:valid valid :cleartext cleartext}))
       ;; (check-hash)
       ;; (payload-to-map)))
