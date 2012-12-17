@@ -40,7 +40,7 @@
     (.update digester
              (.array (gloss.io/contiguous
                       (gloss.io/encode payload-len-codec {:payload-len (count cleartext-payload)}))))
-    (.update digester (.getBytes cleartext-payload "utf-8"))
+    (.update digester (if (string? cleartext-payload) (.getBytes cleartext-payload "utf-8") cleartext-payload))
     (.digest digester)))
 
 (defn deflate [input]
