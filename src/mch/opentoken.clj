@@ -255,7 +255,7 @@ or :key must be supplied."
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
   (let [cleartext-payload (map-to-string payload)
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
-        encryptor (fn [payload] (encrypt payload :password password :salt salt :key key :iv iv))
+        encryptor (fn [payload] (encrypt payload :cipher cipher :password password :salt salt :key key :iv iv))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
         hmac (create-hmac 1 1 iv nil cleartext-payload)
         bin (create-frame 1 1 hmac iv nil ciphertext)
