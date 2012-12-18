@@ -96,7 +96,7 @@ since OpenToken allows for multiple values per key."
 
 (defn decrypt-des [ciphertext key iv]
   (let [cipher (javax.crypto.Cipher/getInstance "DESede/CBC/PKCS5Padding")
-        _ (.init cipher javax.crypto.Cipher/ENCRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
+        _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
         cleartext (.doFinal cipher ciphertext)]
     cleartext))
 
