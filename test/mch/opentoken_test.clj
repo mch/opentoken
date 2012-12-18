@@ -6,15 +6,15 @@
 ;; Data from the spec at http://tools.ietf.org/html/draft-smith-opentoken-02
 ;; This data appears to be broken. The header is PTK instead of OTK, and the
 ;; encrypted data is not correctly padded. The key is base64 encoded. 
-(def spec-data [{:cipher :aes-128
-                 :key "a66C9MvM8eY4qJKyCXKW+w=="
-                 :token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"}
-                {:cipher :aes-256
-                 :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc="
-                 :token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"}
-                {:cipher :3des-168
-                 :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th"
-                 :token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"}])
+(def spec-data {:aes-128 {:cipher :aes-128
+                          :key "a66C9MvM8eY4qJKyCXKW+w=="
+                          :token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"}
+                :aes-256 {:cipher :aes-256
+                          :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc="
+                          :token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"}
+                :3des-168 {:cipher :3des-168
+                           :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th"
+                           :token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"}})
 
 (def test-payload-map {"foo" ["bar"] "bar" ["baz"]})
 (def expected-cleartext "bar=baz\r\nfoo=bar\r\n")
@@ -47,6 +47,24 @@
           token (encode test-payload-map :key key :cipher cipher)
           tamper-token (apply str "A" (rest token))
           output (decrypt-token token  :key key :cipher cipher)]
+      (is (= expected-cleartext (String. output "UTF-8"))))))
+
+(deftest aes-256
+  (testing "AES-256 decoding"
+    (let [cipher :aes-256
+          key (b64/decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
+          token (encode test-payload-map :key key :cipher cipher)
+          tamper-token (apply str "A" (rest token))
+          output (decrypt-token token  :key key :cipher cipher)]
+      (is (= expected-cleartext (String. output "UTF-8"))))))
+
+(deftest des-168
+  (testing "DES-168 decoding"
+    (let [cipher :3des-168
+          key (b64/decode (.getBytes (:key (:3des-168 spec-data)) "UTF-8"))
+          token (encode test-payload-map :key key :cipher cipher)
+          tamper-token (apply str "A" (rest token))
+          output (decrypt-token token :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8"))))))
 
 (deftest map-to-string-test
