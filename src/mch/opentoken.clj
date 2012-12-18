@@ -165,8 +165,14 @@ since OpenToken allows for multiple values per key."
           (= cipher :3des-168) (decrypt-des ciphertext k iv))))
 
 (defn create-frame [version cipher-suite hmac iv key-info payload]
-  (.array (gloss.io/contiguous (gloss.io/encode opentoken [opentoken-literal
-                                                           opentoken-version 1 hmac iv nil payload]))))
+  (.array (gloss.io/contiguous (gloss.io/encode opentoken
+                                                [opentoken-literal
+                                                 version
+                                                 cipher-suite
+                                                 hmac
+                                                 iv
+                                                 key-info
+                                                 payload]))))
 
 (defn decode-frame [token]
   (gloss.io/decode opentoken token))
@@ -233,17 +239,17 @@ containing the decrypted text."
                       :iv (:iv t)))))
 
 (defn decode [token key-decider]
-  "Decodes an OpenToken supplied as a string. Calls the key-decider function
-with a map containing the cipher-suite and key-info data from the token.
-The key-decider function must return a map containing either a :password,
+  "Decodes an OpenToken supplied as a string. Calls the key-decider
+function with a map containing the token, from which the :cipher-suite
+and :key-info items should be used to identify the key to use. The
+key-decider function must return a map containing either a :password,
 :password and :salt, or a :key. Returns a map of the key value pairs that
 were stored in the token."
   (let [dt (decode-token token)] ;; catch gloss exceptions and rethrow OpenToken specific ones?
     (if-not (token-valid? dt)
       {:status :invalid-token} ;; throw exception?
       (let [{:keys [password salt key] :or {password nil salt nil key nil}}
-            (key-decider {:key-info (:key-info dt)
-                          :cipher-suite (:cipher-suite dt)})
+            (key-decider dt)
             cleartext (decrypt-token dt :password password :salt salt :key key)]
         (if-not (hmac-valid? dt cleartext)
           {:status :invalid-hmac} ;; throw exception?
@@ -251,7 +257,7 @@ were stored in the token."
 
 ;; TODO use the same key-decider function as decode? Nice symmetry that way.
 ;; TODO catch and rethrow exceptions?
-(defn encode [payload & {:keys [cipher password salt key iv] :or {cipher :aes-256 password nil salt nil key nil iv nil}}]
+(defn encode [payload & {:keys [cipher password salt key iv key-info] :or {cipher :aes-256 password nil salt nil key nil iv nil key-info nil}}]
   "Encodes a map as an encrypted OpenToken. One of :password, :password and :salt,
 or :key must be supplied."
   (if-not (map? payload)
@@ -262,7 +268,7 @@ or :key must be supplied."
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
         encryptor (fn [payload] (encrypt payload :cipher cipher :password password :salt salt :key key :iv iv))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
-        hmac (create-hmac 1 1 iv nil cleartext-payload)
-        bin (create-frame 1 1 hmac iv nil ciphertext)
+        hmac (create-hmac opentoken-version (cipher cipher-suites) iv nil cleartext-payload)
+        bin (create-frame opentoken-version (cipher cipher-suites) hmac iv key-info ciphertext)
         b64token (String. (b64/encode bin) "UTF-8")]
     (make-cookie-safe b64token)))
