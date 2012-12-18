@@ -22,22 +22,32 @@
 (deftest public-api-test
   (testing "Encoding and decoding the tokens with a password through the public API"
     (let [password "password"
-          token (encode test-payload-map :password password)
+          token1 (encode test-payload-map :password password)
+          token2 (encode test-payload-map :password (str password "A"))
           key-decider (fn [key-info] {:password password})
-          output (decode token key-decider)]
+          output (decode token1 key-decider)]
+      (is (not= token1 token2))
       (is (= output test-payload-map))))
+  
   (testing "Encoding and decoding the tokens with a password and salt through the public API"
     (let [password "password"
           salt "saltydog"
-          token (encode test-payload-map :password password :salt salt)
+          token1 (encode test-payload-map :password password :salt salt)
+          token2 (encode test-payload-map :password (str password "A") :salt salt)
           key-decider (fn [key-info] {:password password :salt salt})
-          output (decode token key-decider)]
+          output (decode token1 key-decider)]
+      (is (not= token1 token2))
       (is (= output test-payload-map))))
+
   (testing "Encoding and decoding the tokens with a key through the public API"
-    (let [key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
-          token (encode test-payload-map :key key)
-          key-decider (fn [key-info] {:key key})
-          output (decode token key-decider)]
+    (let [key1 (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          key2 (byte-array key1)
+          _ (aset-byte key2 0 106)
+          token1 (encode test-payload-map :key key1)
+          token2 (encode test-payload-map :key key2)
+          key-decider (fn [key-info] {:key key1})
+          output (decode token1 key-decider)]
+      (is (not= token1 token2))
       (is (= output test-payload-map)))))
 
 (deftest aes-128
