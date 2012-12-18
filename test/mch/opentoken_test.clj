@@ -3,45 +3,52 @@
         mch.opentoken)
   (:require [clojure.data.codec.base64 :as b64]))
 
-(def test-token-data {:otk "OTK"
-                      :version 1
-                      :cipher-suite 0
-                      :iv nil
-                      :key-info nil
-                      :payload "foo=bar\r\nbar=baz"})
+;; Data from the spec at http://tools.ietf.org/html/draft-smith-opentoken-02
+;; This data appears to be broken. The header is PTK instead of OTK, and the
+;; encrypted data is not correctly padded. The key is base64 encoded. 
+(def spec-data [{:cipher :aes-128
+                 :key "a66C9MvM8eY4qJKyCXKW+w=="
+                 :token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"}
+                {:cipher :aes-256
+                 :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc="
+                 :token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"}
+                {:cipher :3des-168
+                 :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th"
+                 :token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"}])
 
-(def expected {"foo" "bar" "bar" "baz"})
+(def test-payload-map {"foo" "bar" "bar" "baz"})
+(def expected-cleartext "bar=baz\r\nfoo=bar\r\n")
 
-;; (deftest aes-128
-;;   (testing "AES-128 decoding"
-;;     (let [cipher :aes-128
-;;           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
-;;           token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"
-;;           token-parts (decode-token token)
-;;           iv (:iv token-parts)]
-;;       (is (= token (encode expected :key key :cipher cipher :iv iv))))))
+(deftest public-api-test
+  (testing "Encoding and decoding the tokens with a password through the public API"
+    (let [password "password"
+          token (encode test-payload-map :password password)
+          key-decider (fn [key-info] {:password password})
+          output (decode token key-decider)]
+      (is (= output test-payload-map))))
+  (testing "Encoding and decoding the tokens with a password and salt through the public API"
+    (let [password "password"
+          salt "saltydog"
+          token (encode test-payload-map :password password :salt salt)
+          key-decider (fn [key-info] {:password password :salt salt})
+          output (decode token key-decider)]
+      (is (= output test-payload-map))))
+  (testing "Encoding and decoding the tokens with a key through the public API"
+    (let [key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          token (encode test-payload-map :key key)
+          key-decider (fn [key-info] {:key key})
+          output (decode token key-decider)]
+      (is (= output test-payload-map)))))
 
-(deftest aes-256
-  (testing "AES-256 encoding and decoding"
-    (let [cipher :aes-256
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
-          token "UFRLAQEujlLGEvmVKDKyvL1vaZ27qMYhTxDSAZwtaufqUff7GQXTjvWBAAAgJJGPta7VOITap4uDZ_OkW_Kt4yYZ4BBQzw_NR2CNE-g*"
-          token-parts (decode-token token)
-          iv (:iv token-parts)
-          ki (:key-info token-parts)]
-      (println (format "aes-256 iv: %s" (.toString (BigInteger. 1 iv) 16)))
-      (println token-parts)
-      (is (= token (encode expected :key key :cipher cipher :iv iv))))))
-      ;(is (= (decode token key :cipher cipher) expected)))))
-
-;; (deftest threedes-168
-;;   (testing "3DES-168 decoding"
-;;     (let [cipher :3des-168
-;;           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th" "UTF-8"))
-;;           token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"
-;;           token-parts (decode-token token)
-;;           iv (:iv token-parts)]          
-;;       (is (= token (encode expected :key key :cipher cipher :iv iv))))))
+(deftest aes-128
+  (testing "AES-128 decoding"
+    (let [cipher :aes-128
+          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
+          token (encode test-payload-map :key key :cipher cipher)
+          tamper-token (apply str "A" (rest token))
+          output (decrypt-token token  :key key :cipher cipher)]
+      (println output)
+      (is (= expected-cleartext (String. output "UTF-8"))))))
 
 (deftest map-to-string-test
   (testing "that maps are converted to OpenToken formatted strings"
@@ -125,25 +132,24 @@
                                         :iv (:iv ciphertext2))))))
       (is (= (seq cleartext-b) (seq (decrypt (:ciphertext ciphertext1) :iv (:iv ciphertext1) :password password :salt salt)))))))
 
-;; (deftest validate-token-type-test
-;;   (testing "token has valid header, version and cipher."
-;;     (let [cleartext "foo=bar\r\nbar=baz\r\n"
-;;           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
-;;           token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))
-;;           broken-version (assoc token :version 0)
-;;           broken-header (assoc token :otk "PTK")
-;;           broken-cipher (assoc token :cipher-suite 4)]
-;;       (is (validate-token-type token))
-;;       (is (not validate-token-type broken-cipher))
-;;       (is (not validate-token-type broken-version))
-;;       (is (not validate-token-type broken-header)))))
-
-    
-
 (deftest validate-token-test
+  (testing "token has valid header, version and cipher."
+    (let [cleartext "foo=bar\r\nbar=baz\r\n"
+          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))
+          broken-version (assoc token :version 0)
+          broken-header (assoc token :otk "PTK")
+          broken-cipher (assoc token :cipher-suite 4)]
+      (println token)
+      (is (token-valid? token))
+      (is (not (token-valid? broken-cipher)))
+      (is (not (token-valid? broken-version)))
+      (is (not (token-valid? broken-header))))))
+
+(deftest validate-hmac-test
   (testing "token has correct hmac"
     (let [cleartext "bar=baz\r\nfoo=bar\r\n"
           key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
           token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))]
-      (is (validate-token token cleartext))
-      (is (not (validate-token token (str cleartext "A")))))))
+      (is (hmac-valid? token cleartext))
+      (is (not (hmac-valid? token (str cleartext "A")))))))
