@@ -16,7 +16,7 @@
                  :key "a66C9MvM8eY4qJKyCXKW+19PWDeuc3th"
                  :token "UFRLAQNoCsuAwybXOSBpIc9ZvxQVx_3fhghqSjy-pNJpfgAAGGlGgJ79NhX43lLRXAb9Mp5unR7XFWopzw**"}])
 
-(def test-payload-map {"foo" "bar" "bar" "baz"})
+(def test-payload-map {"foo" ["bar"] "bar" ["baz"]})
 (def expected-cleartext "bar=baz\r\nfoo=bar\r\n")
 
 (deftest public-api-test
@@ -47,13 +47,18 @@
           token (encode test-payload-map :key key :cipher cipher)
           tamper-token (apply str "A" (rest token))
           output (decrypt-token token  :key key :cipher cipher)]
-      (println output)
       (is (= expected-cleartext (String. output "UTF-8"))))))
 
 (deftest map-to-string-test
-  (testing "that maps are converted to OpenToken formatted strings"
+  (testing "that maps with string values are converted to OpenToken formatted strings"
     (let [m {"foo" "bar" "baz" "quux"}]
-      (is (= "baz=quux\r\nfoo=bar\r\n" (map-to-string m))))))
+      (is (= "baz=quux\r\nfoo=bar\r\n" (map-to-string m)))))
+  (testing "that maps with vector values are converted to OpenToken formatted strings"
+    (let [m {"foo" ["bar"] "baz" ["quux"]}]
+      (is (= "baz=quux\r\nfoo=bar\r\n" (map-to-string m)))))
+  (testing "that maps with vector values are converted to OpenToken formatted strings"
+    (let [m {"foo" ["bar" "bakery"] "baz" ["quux"]}]
+      (is (= "baz=quux\r\nfoo=bakery\r\nfoo=bar\r\n" (map-to-string m))))))
 
 (deftest string-to-map-test
   (testing "that OpenToken strings can be converted to maps."
@@ -140,7 +145,6 @@
           broken-version (assoc token :version 0)
           broken-header (assoc token :otk "PTK")
           broken-cipher (assoc token :cipher-suite 4)]
-      (println token)
       (is (token-valid? token))
       (is (not (token-valid? broken-cipher)))
       (is (not (token-valid? broken-version)))

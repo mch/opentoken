@@ -26,17 +26,20 @@
 (defn map-to-string [m]
   "Converts a map to a OpenToken payload string."
   {:pre [(map? m)]}
-  (reduce #(format "%s=%s\r\n%s" (first %2) (second %2) %1) "" m))
+  (let [sify (fn [k v acc] (format "%s=%s\r\n%s" k v acc))]
+    (reduce (fn [acc x] (if (sequential? (second x))
+                          (reduce #(sify (first x) %2 %1) acc (second x))
+                          (sify (first x) (second x) acc))) "" m)))
 
 (defn string-to-map [s]
   "Converts a OpenToken string to a Clojure map, where the value is a vector,
 since OpenToken allows for multiple values per key."
-  (apply hash-map (flatten  (map #(str/split % #"=") (str/split s #"\r\n")))))
-  ;; (->> s
-  ;;     (#(str/split % #"\r\n"))
-  ;;     (map #(str/split % #"="))
-  ;;     (flatten)
-  ;;     (#(apply hash-map))))
+  (let [pairs (map #(str/split % #"=") (str/split s #"\r\n"))
+        rfn (fn [acc x]
+              (let [[key value] x
+                    value-vec (get acc key [])]
+                (assoc acc key (conj value-vec value))))]
+    (reduce rfn {} pairs)))
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
 (defn create-hmac [version suite iv key-info cleartext-payload]
