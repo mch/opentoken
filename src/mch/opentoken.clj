@@ -246,7 +246,7 @@ were stored in the token."
 
 ;; TODO use the same key-decider function as decode? Nice symmetry that way.
 ;; TODO catch and rethrow exceptions?
-(defn encode [payload & {:keys [cipher password salt key iv] :or {cipher :none password nil salt nil key nil iv nil}}]
+(defn encode [payload & {:keys [cipher password salt key iv] :or {cipher :aes-256 password nil salt nil key nil iv nil}}]
   "Encodes a map as an encrypted OpenToken. One of :password, :password and :salt,
 or :key must be supplied."
   (if-not (map? payload)
