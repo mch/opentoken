@@ -144,9 +144,9 @@ since OpenToken allows for multiple values per key."
             (make-key-from-ba cipher key)
             (make-key cipher password salt))
         c (if (string? cleartext) (.getBytes cleartext "UTF-8") cleartext)]
-        (cond (= cipher :none) c
-              (contains? #{:aes-256 :aes-128} cipher) (encrypt-aes c k iv)
-              (= cipher :3des-168) (encrypt-des c k iv))))
+    (cond (= cipher :none) c
+          (contains? #{:aes-256 :aes-128} cipher) (encrypt-aes c k iv)
+          (= cipher :3des-168) (encrypt-des c k iv))))
 
 (defn decrypt [ciphertext & {:keys [cipher password salt key iv]
                              :or {cipher :aes-256 password "" salt nil key nil iv nil}}]
