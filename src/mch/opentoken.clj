@@ -8,6 +8,11 @@
 (def opentoken-version 1)
 (def opentoken-literal "OTK")
 (def opentoken-default-salt "OPENTOKEN-SALT")
+(def opentoken-standard-pairs {"subject" ""
+                               "not-before" ""
+                               "not-on-or-after" ""
+                               "renew-until" ""})
+
 (def opentoken-frame-keys [:otk :version :cipher-suite :hmac :iv :key-info :payload])
 
 (def opentoken-frame [(gloss.core/string :utf-8 :length 3)

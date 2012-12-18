@@ -5,7 +5,7 @@
 
 ;; Data from the spec at http://tools.ietf.org/html/draft-smith-opentoken-02
 ;; This data appears to be broken. The header is PTK instead of OTK, and the
-;; encrypted data is not correctly padded. The key is base64 encoded. 
+;; encrypted data is not correctly padded.
 (def spec-data {:aes-128 {:cipher :aes-128
                           :key "a66C9MvM8eY4qJKyCXKW+w=="
                           :token "UFRLAQK9THj0okLTUB663QrJFg5qA58IDhAb93ondvcx7sY6s44eszNqAAAga5W8Dc4XZwtsZ4qV3_lDI-Zn2_yadHHIhkGqNV5J9kw*"}
