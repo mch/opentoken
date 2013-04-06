@@ -126,15 +126,14 @@
       :key-info (buffer-to-array (:key-info frame))
       :payload (buffer-to-array (:payload frame)))))
 
-(defn decrypt-token [token & {:keys [cipher password key]
-                              :or {cipher :aes-256 password nil key nil}}]
+(defn decrypt-token [token & {:keys [password key]
+                              :or {password nil key nil}}]
   "Decrypts and inflates the payload of the token, returning a byte array
 containing the decrypted text."
-  (if-not (contains? cipher-suites cipher) ;; TODO multi-method on cipher type?
-    (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
-  (let [t (if (string? token) (decode-token token) token)]
+  (let [t (if (string? token) (decode-token token) token)
+        cipher-suite ({0 :none 1 :aes-256 2 :aes-128 3 :3des-168} (:cipher-suite t))]
     (inflate (decrypt (:payload t) ;; TODO catch crypto exceptions and re-throw an OpenToken one?
-                      :cipher cipher
+                      :cipher cipher-suite
                       :password password
                       :key key
                       :iv (:iv t)))))
