@@ -169,28 +169,6 @@
       (is (= "234ads***" safe))
       (is (= output input)))))
           
-(deftest encrypt-decrypt
-  (testing "AES 256 encryption and decryption"
-    (let [cipher :aes-256
-          password "secret"
-          salt "12345"
-          salt-b (.getBytes "12345" "UTF-8")
-          key (byte-array 32 (byte 34)) ; 256 bits
-          cleartext "Hi everyone."
-          cleartext-b (.getBytes cleartext "UTF-8")
-          ciphertext1 (encrypt cleartext :cipher cipher :password password :salt salt)
-          ciphertext2 (encrypt cleartext :cipher cipher :key key)]
-      (is (= (seq (:ciphertext ciphertext1))
-             (seq (:ciphertext (encrypt cleartext  :cipher cipher :password password :salt salt-b
-                                        :iv (:iv ciphertext1))))))
-      (is (= (seq (:ciphertext ciphertext1))
-             (seq (:ciphertext (encrypt cleartext-b  :cipher cipher :password password :salt salt
-                                        :iv (:iv ciphertext1))))))
-      (is (= (seq (:ciphertext ciphertext2))
-             (seq (:ciphertext (encrypt cleartext-b :cipher cipher :key key
-                                        :iv (:iv ciphertext2))))))
-      (is (= (seq cleartext-b) (seq (decrypt (:ciphertext ciphertext1) :iv (:iv ciphertext1) :password password :salt salt)))))))
-
 (deftest validate-token-test
   (testing "token has valid header, version and cipher."
     (let [cleartext "foo=bar\r\nbar=baz\r\n"

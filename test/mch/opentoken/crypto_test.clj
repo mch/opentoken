@@ -14,8 +14,26 @@
              (seq (.getEncoded (crypto/make-aes-key 128 password nil))) => (seq expected-aes128-key))
        (fact "can make 256 bit AES key"
              (seq (.getEncoded (crypto/make-aes-key 256 password nil))) => (seq expected-aes256-key))
+       ;; No DES provider in my JDK...
 ;;       (fact "can make DES key"
        ;;             (seq (.getEncoded (crypto/make-3des-key 168 password nil))) => (seq expected-aes256-key))
        )
+
+(facts "About AES 256 encryption and decryption"
+      (let [cipher :aes-256
+            password "secret"
+            key (byte-array 32 (byte 34)) ; 256 bits
+            cleartext "Hi everyone."
+            cleartext-b (.getBytes cleartext "UTF-8")
+            ciphertext1 (crypto/encrypt cleartext :cipher cipher :password password)
+            ciphertext2 (crypto/encrypt cleartext :cipher cipher :key key)]
+        (fact (seq (:ciphertext (crypto/encrypt cleartext  :cipher cipher :password password
+                                                :iv (:iv ciphertext1)))) =>  (seq (:ciphertext ciphertext1)))
+        (fact (seq (:ciphertext (crypto/encrypt cleartext-b  :cipher cipher :password password
+                                                :iv (:iv ciphertext1)))) => (seq (:ciphertext ciphertext1)))
+        (fact (seq (:ciphertext (crypto/encrypt cleartext-b :cipher cipher :key key
+                                                :iv (:iv ciphertext2)))) => (seq (:ciphertext ciphertext2)))
+        (fact (seq (crypto/decrypt (:ciphertext ciphertext1) :iv (:iv ciphertext1) :password password)) => (seq cleartext-b))))
+
 
 
