@@ -4,10 +4,18 @@
   (:require [clojure.string :as str])
   (:require [clojure.data.codec.base64 :as b64]))
 
+;;; TODO
+;;; - Error handling: catch various exceptions and rethrow as an OpenTokenException
+;;; - Try multi-methods to dispatch encryption and decryption on cipher
+;;; - Reduce structural duplication
+;;; - Move everything except the public API defs to mch.opentoken.encryption and so on.
+;;; - Use streams to reduce copying, or some other method more suitable to functional composition. 
+
 (def cipher-suites {:none 0 :aes-256 1 :aes-128 2 :3des-168 3})
 (def opentoken-version 1)
 (def opentoken-literal "OTK")
-(def opentoken-default-salt "OPENTOKEN-SALT")
+(def opentoken-default-salt (byte-array 8 (byte 0)))
+(def opentoken-default-iterations 1000)
 (def opentoken-standard-pairs {"subject" ""
                                "not-before" ""
                                "not-on-or-after" ""
@@ -112,20 +120,20 @@ since OpenToken allows for multiple values per key."
     cleartext))
 
 (defn make-aes-key [key-len password salt]  
-  (let [s (if (nil? salt) (.getBytes opentoken-default-salt "UTF-8")
+  (let [s (if (nil? salt) opentoken-default-salt
               (if (string? salt) (.getBytes salt "UTF-8") salt))
         pbe-name "PBKDF2WithHmacSHA1"
         key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
-        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray password) s 65536 key-len)
+        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray password) s opentoken-default-iterations key-len)
         key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "AES")]
     key))
 
 (defn make-3des-key [key-len password salt]
-  (let [s (if (nil? salt) (.getBytes opentoken-default-salt "UTF-8")
+  (let [s (if (nil? salt) opentoken-default-salt
               (if (string? salt) (.getBytes salt "UTF-8") salt))
         pbe-name "PBEWithHmacSHA1AndDESede"
         key-factory (javax.crypto.SecretKeyFactory/getInstance pbe-name)
-        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray password) s 65536 key-len)
+        key-spec (javax.crypto.spec.PBEKeySpec. (.toCharArray password) s opentoken-default-iterations key-len)
         key (javax.crypto.spec.SecretKeySpec. (.getEncoded (.generateSecret key-factory key-spec)) "DESede")]
     key))
 
