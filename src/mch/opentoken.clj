@@ -145,9 +145,9 @@ since OpenToken allows for multiple values per key."
         :else (throw (IllegalArgumentException. "Invalid cipher."))))
 
 (defn make-key-from-ba [cipher key]
-  (cond (= cipher :aes-256) (javax.crypto.spec.SecretKeySpec. key 0 (count key) "AES")
-        (= cipher :aes-128) (javax.crypto.spec.SecretKeySpec. key 0 (count key) "AES")
-        (= cipher :3des-168) (javax.crypto.spec.SecretKeySpec. key 0 (count key) "DESede")))
+  (cond (= cipher :aes-256) (javax.crypto.spec.SecretKeySpec. key "AES")
+        (= cipher :aes-128) (javax.crypto.spec.SecretKeySpec. key "AES")
+        (= cipher :3des-168) (javax.crypto.spec.SecretKeySpec. key "DESede")))
 
 (defn encrypt [cleartext & {:keys [cipher password salt key iv]
                             :or {cipher :aes-256 password "" salt nil key nil iv nil}}]
