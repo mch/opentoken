@@ -194,7 +194,7 @@ since OpenToken allows for multiple values per key."
   (apply str (map #(if (= \* %) \= %) s)))
 
 (defn token-valid? [token]
-  "Validates OTK literal and version."
+  "Validates OTK literal and version. TODO validate IV length and cipher suite"
   (and (= opentoken-version (:version token))
        (= opentoken-literal (:otk token))
        (>= 3 (:cipher-suite token))
