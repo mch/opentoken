@@ -27,14 +27,6 @@
           output (decode token1 key-decider)]
       (is (= output test-payload-map))))
   
-  (testing "Encoding and decoding the tokens with a password and salt through the public API"
-    (let [password "password"
-          salt "saltydog"
-          token1 (encode test-payload-map :password password :salt salt)
-          key-decider (fn [key-info] {:password password :salt salt})
-          output (decode token1 key-decider)]
-      (is (= output test-payload-map))))
-
   (testing "Encoding and decoding the tokens with a key through the public API"
     (let [key (b64/decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
           token1 (encode test-payload-map :key key)
@@ -91,18 +83,7 @@
             token1 (encode test-payload-map :password password1 :cipher cipher)
             iv (:iv (decode-token token1))
             token2 (encode test-payload-map :password password2 :cipher cipher :iv iv)]
-        (is (not= token1 token2))))
-
-  (testing "AES-128 different password salt, different token"
-    (let [cipher :aes-128
-          password "1234"
-          salt1 "salt"
-          salt2 "dog"
-          token1 (encode test-payload-map :password password :salt salt1 :cipher cipher)
-          iv (:iv (decode-token token1))
-          token2 (encode test-payload-map :password password :salt salt2 :cipher cipher :iv iv)]
-      (is (not= token1 token2)))))
-
+        (is (not= token1 token2)))))
 
 (deftest aes-256
   (testing "AES-256 decoding"
