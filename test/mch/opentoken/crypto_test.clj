@@ -60,9 +60,9 @@
        (fact "Pads up to 512"
              (count (crypto/pad-ciphertext (byte-array 2))) => 512)
        (fact "Stays at 512"
-             (count (pad-ciphertext (byte-array 512))) => 512)
+             (count (crypto/pad-ciphertext (byte-array 512))) => 512)
        (fact "Pads up to 1024"
-             (count (pad-ciphertext (byte-array 513))) => 1024))
+             (count (crypto/pad-ciphertext (byte-array 513))) => 1024))
 
 
 (facts "about AES 128 decryption"

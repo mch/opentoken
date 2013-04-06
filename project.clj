@@ -5,5 +5,6 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.4.0"]
                  [gloss "0.2.2-beta3"]
-                 [org.clojure/data.codec "0.1.0"]]
+                 [org.clojure/data.codec "0.1.0"]
+                 [commons-codec "1.7"]]
   :profiles {:dev {:dependencies [[midje "1.5.1"]]}})

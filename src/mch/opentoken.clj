@@ -1,9 +1,8 @@
 (ns mch.opentoken
   "Implements the OpenToken specification: http://tools.ietf.org/html/draft-smith-opentoken-02"
   (:use mch.opentoken.crypto)
-  (:require [gloss core io])
-  (:require [clojure.string :as str])
-  (:require [clojure.data.codec.base64 :as b64]))
+  (:use mch.opentoken.util)
+  (:require [gloss core io]))
 
 ;;; TODO
 ;;; - Error handling: catch various exceptions and rethrow as an OpenTokenException
@@ -33,24 +32,6 @@
 
 (def payload-len-frame {:payload-len :int16})
 (gloss.core/defcodec payload-len-codec payload-len-frame)
-
-(defn map-to-string [m]
-  "Converts a map to a OpenToken payload string."
-  {:pre [(map? m)]}
-  (let [sify (fn [k v acc] (format "%s=%s\r\n%s" k v acc))]
-    (reduce (fn [acc x] (if (sequential? (second x))
-                          (reduce #(sify (first x) %2 %1) acc (second x))
-                          (sify (first x) (second x) acc))) "" m)))
-
-(defn string-to-map [s]
-  "Converts a OpenToken string to a Clojure map, where the value is a vector,
-since OpenToken allows for multiple values per key."
-  (let [pairs (map #(str/split % #"=") (str/split s #"\r\n"))
-        rfn (fn [acc x]
-              (let [[key value] x
-                    value-vec (get acc key [])]
-                (assoc acc key (conj value-vec value))))]
-    (reduce rfn {} pairs)))
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
 (defn create-hmac [version suite iv key-info cleartext-payload]
@@ -136,7 +117,7 @@ since OpenToken allows for multiple values per key."
   (let [tbytes (-> token
                    (revert-cookie-safety)
                    (.getBytes "UTF-8")
-                   (b64/decode)
+                   (b64-decode)
                    (decode-frame))
         frame (apply hash-map (interleave opentoken-frame-keys tbytes))]
     (assoc frame
@@ -188,5 +169,5 @@ or a :key. Returns a map of the key value pairs that were stored in the token."
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
         hmac (create-hmac opentoken-version (cipher cipher-suites) iv nil cleartext-payload)
         bin (create-frame opentoken-version (cipher cipher-suites) hmac iv key-info ciphertext)
-        b64token (String. (b64/encode bin) "UTF-8")]
+        b64token (String. (b64-encode bin) "UTF-8")]
     (make-cookie-safe b64token)))

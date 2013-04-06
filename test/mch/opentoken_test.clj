@@ -1,7 +1,12 @@
 (ns mch.opentoken-test
   (:use clojure.test
-        mch.opentoken)
-  (:require [clojure.data.codec.base64 :as b64]))
+        mch.opentoken
+        mch.opentoken.util)
+  (:use midje.sweet))
+
+;; TODO
+;; - tests for large payloads, above 256 bytes
+;; - tests for wrong passwords
 
 ;; Data from the spec at http://tools.ietf.org/html/draft-smith-opentoken-02
 ;; This data appears to be broken. The header is PTK instead of OTK, and the
@@ -28,7 +33,7 @@
       (is (= output test-payload-map))))
   
   (testing "Encoding and decoding the tokens with a key through the public API"
-    (let [key (b64/decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
+    (let [key (b64-decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
           token1 (encode test-payload-map :key key)
           key-decider (fn [key-info] {:key key})
           output (decode token1 key-decider)]
@@ -47,7 +52,7 @@
 (deftest aes-128
   (testing "AES-128 encode - decode"
     (let [cipher :aes-128
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
+          key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
           token (encode test-payload-map :key key :cipher cipher)
           output (decrypt-token token  :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8")))))
@@ -57,7 +62,7 @@
 
   (testing "AES-128 same IV, same token, different IV, different token"
     (let [cipher :aes-128
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
+          key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
           token1 (encode test-payload-map :key key :cipher cipher)
           token2 (encode test-payload-map :key key :cipher cipher)
           iv (:iv (decode-token token1))
@@ -68,7 +73,7 @@
 
   (testing "AES-128 different key, different token"
     (let [cipher :aes-128
-          key1 (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
+          key1 (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
           key2 (byte-array key1)
           _ (aset-byte key2 0 106)
           token1 (encode test-payload-map :key key1 :cipher cipher)
@@ -88,7 +93,7 @@
 (deftest aes-256
   (testing "AES-256 decoding"
     (let [cipher :aes-256
-          key (b64/decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
+          key (b64-decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
           token (encode test-payload-map :key key :cipher cipher)
           tamper-token (apply str "A" (rest token))
           output (decrypt-token token  :key key :cipher cipher)]
@@ -97,29 +102,11 @@
 (deftest des-168
   (testing "DES-168 decoding"
     (let [cipher :3des-168
-          key (b64/decode (.getBytes (:key (:3des-168 spec-data)) "UTF-8"))
+          key (b64-decode (.getBytes (:key (:3des-168 spec-data)) "UTF-8"))
           token (encode test-payload-map :key key :cipher cipher)
           tamper-token (apply str "A" (rest token))
           output (decrypt-token token :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8"))))))
-
-(deftest map-to-string-test
-  (testing "that maps with string values are converted to OpenToken formatted strings"
-    (let [m {"foo" "bar" "baz" "quux"}]
-      (is (= "baz=quux\r\nfoo=bar\r\n" (map-to-string m)))))
-  (testing "that maps with vector values are converted to OpenToken formatted strings"
-    (let [m {"foo" ["bar"] "baz" ["quux"]}]
-      (is (= "baz=quux\r\nfoo=bar\r\n" (map-to-string m)))))
-  (testing "that maps with vector values are converted to OpenToken formatted strings"
-    (let [m {"foo" ["bar" "bakery"] "baz" ["quux"]}]
-      (is (= "baz=quux\r\nfoo=bakery\r\nfoo=bar\r\n" (map-to-string m))))))
-
-(deftest string-to-map-test
-  (testing "that OpenToken strings can be converted to maps."
-    (let [s1 "bar=baz\r\nfoo=bar\r\n"
-          s2 "bar=baz\r\nfoo=bar\r\nbar=quux\r\n"]
-      (is (= {"bar" ["baz"] "foo" ["bar"]} (string-to-map s1)))
-      (is (= {"bar" ["baz" "quux"] "foo" ["bar"]} (string-to-map s2))))))
 
 (deftest deflate-test
   (testing "DEFLATE"
@@ -172,7 +159,7 @@
 (deftest validate-token-test
   (testing "token has valid header, version and cipher."
     (let [cleartext "foo=bar\r\nbar=baz\r\n"
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
           token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))
           broken-version (assoc token :version 0)
           broken-header (assoc token :otk "PTK")
@@ -185,7 +172,7 @@
 (deftest validate-hmac-test
   (testing "token has correct hmac"
     (let [cleartext "bar=baz\r\nfoo=bar\r\n"
-          key (b64/decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
+          key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
           token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))]
       (is (hmac-valid? token cleartext))
       (is (not (hmac-valid? token (str cleartext "A")))))))
