@@ -24,6 +24,13 @@
         ciphertext (.doFinal cipher cleartext)]
     {:iv iv :ciphertext ciphertext}))
 
+(defn pad-ciphertext [c]
+  (let [pad-multiple 512
+        c-length (count c)
+        missing-bytes (mod (- pad-multiple (mod c-length pad-multiple)) pad-multiple)
+        new-length (+ c-length missing-bytes)]
+    (byte-array new-length c)))
+
 (defn decrypt-des [ciphertext key iv]
   (let [cipher (javax.crypto.Cipher/getInstance "DESede/CBC/PKCS5Padding")
         _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key (javax.crypto.spec.IvParameterSpec. iv))
