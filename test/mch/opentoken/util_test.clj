@@ -1,4 +1,5 @@
-(ns mch.opentoken.util
+(ns mch.opentoken.util_test
+  (:use clojure.test)
   (:use mch.opentoken.util)
   (:use midje.sweet)
   (:use clojure.java.io))
@@ -21,3 +22,5 @@
       (is (= {"bar" ["baz"] "foo" ["bar"]} (string-to-map s1)))
       (is (= {"bar" ["baz" "quux"] "foo" ["bar"]} (string-to-map s2))))))
 
+(facts "string-to-map handles \n separate items"
+  (fact (string-to-map "foo=bar\nbifur=bofur") => {"foo" ["bar"] "bifur" ["bofur"]}))
