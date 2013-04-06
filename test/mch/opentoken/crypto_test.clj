@@ -11,9 +11,9 @@
 
 (facts "about making AES and DES keys"
        (fact "can make 128 bit AES key"
-             (seq (.getEncoded (crypto/make-aes-key 128 password nil))) => (seq expected-aes128-key))
+             (seq (crypto/make-aes-key 128 password nil)) => (seq expected-aes128-key))
        (fact "can make 256 bit AES key"
-             (seq (.getEncoded (crypto/make-aes-key 256 password nil))) => (seq expected-aes256-key))
+             (seq (crypto/make-aes-key 256 password nil)) => (seq expected-aes256-key))
        ;; No DES provider in my JDK...
 ;;       (fact "can make DES key"
        ;;             (seq (.getEncoded (crypto/make-3des-key 168 password nil))) => (seq expected-aes256-key))
@@ -67,7 +67,7 @@
 
 (facts "about AES 128 decryption"
        (fact "pf data decrypts properly with pre-created specs"
-             (seq (crypto/decrypt-aes payload-bytes (javax.crypto.spec.SecretKeySpec. key-bytes "AES") iv-bytes)) => (seq expected-decrypted-bytes)))
+             (seq (crypto/decrypt-aes payload-bytes key-bytes iv-bytes)) => (seq expected-decrypted-bytes)))
 
 
 
