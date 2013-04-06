@@ -34,7 +34,6 @@
     (byte-array new-length c)))
 
 (defn decrypt-des [ciphertext key-bytes iv-bytes]
-  (println key-bytes)
   (let [key-spec (javax.crypto.spec.SecretKeySpec. key-bytes "DESede")
         cipher (javax.crypto.Cipher/getInstance "DESede/CBC/PKCS5Padding")
         _ (.init cipher javax.crypto.Cipher/DECRYPT_MODE key-spec (javax.crypto.spec.IvParameterSpec. iv-bytes))
