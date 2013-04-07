@@ -65,29 +65,40 @@
 containing the decrypted text."
   (let [t (if (string? token) (decode-token token) token)
         cipher-suite ({0 :none 1 :aes-256 2 :aes-128 3 :3des-168} (:cipher-suite t))]
-    (inflate (decrypt (:payload t) ;; TODO catch crypto exceptions and re-throw an OpenToken one?
-                      :cipher cipher-suite
-                      :password password
-                      :key key
-                      :iv (:iv t)))))
+    (try (inflate (decrypt (:payload t) ;; TODO catch crypto exceptions and re-throw an OpenToken one?
+                           :cipher cipher-suite
+                           :password password
+                           :key key
+                           :iv (:iv t)))
+         (catch javax.crypto.BadPaddingException e (throw (java.lang.IllegalArgumentException. "Invalid password or key."))))))
 
 (defn decode [token password-or-key-decider & rest]
-  "Decodes an OpenToken supplied as a string. Calls the key-decider
-function with a map containing the token, from which the :cipher-suite
+  "Decodes an OpenToken supplied as a string. The password-or-key-decider
+may either be a string, in which case it is assumed to be a password, or a
+function that takes one argument. If it is a function, it that function is
+called with a map containing the token, from which the :cipher-suite
 and :key-info items should be used to identify the key to use. The
-key-decider function must return a map containing either a :password
-or a :key. Returns a map of the key value pairs that were stored in the token."
+key-decider function must return either a string password or a byte-array
+containing a key.
+
+Keyword arguments:
+- :skip-token-check skips the token version and header check (necessary for the
+  broken spec data.
+- :skip-hmac-check skips the hmac verification"
   (let [dt (decode-token token) ;; catch gloss exceptions and rethrow OpenToken specific ones?
         skip-token-check (some #{:skip-token-check} rest)
         skip-hmac-check (some #{:skip-hmac-check} rest)]
     (if (and (nil? skip-token-check) (not (token-valid? dt)))
       {:status :invalid-token} ;; throw exception?
-      (let [{:keys [password key] :or {password nil key nil}}
-            (if (ifn? password-or-key-decider)
-              (password-or-key-decider dt)
-              (if (string? password-or-key-decider)
-                {:password password-or-key-decider}
-                {:key password-or-key-decider}))  ;; throw if it's not actually a byte-array?
+      (let [password-or-key-decider (if (ifn? password-or-key-decider)
+                                      (password-or-key-decider dt)
+                                      password-or-key-decider)
+            {:keys [password key] :or {password nil key nil}}
+            (if (string? password-or-key-decider)
+              {:password password-or-key-decider}
+              (if (byte-array? password-or-key-decider)
+                {:key password-or-key-decider}
+                (throw (java.lang.IllegalArgumentException. "A string password or byte-array key is required."))))
             cleartext (decrypt-token dt :password password :key key)]
         (if (and (nil? skip-hmac-check) (not (hmac-valid? dt cleartext)))
           {:status :invalid-hmac} ;; throw exception?

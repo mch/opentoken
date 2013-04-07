@@ -51,6 +51,16 @@
   (fact "key-info can only be nil or a byte-array, not a string."
     (encode test-payload-map "password" :key-info "the password is password") => (throws java.lang.IllegalArgumentException)))
 
+(facts "about decode arguments"
+  (let [password "secret"
+        token (encode test-payload-map password)]
+    (fact "wrong password throws exception"
+      (decode token "soopersecret") => (throws java.lang.IllegalArgumentException))
+    (fact "decider function must return a string password"
+      (decode token (fn [token] ["can't be a list"])) => (throws java.lang.IllegalArgumentException))
+    (fact "decider function must return a byte-array key"
+      (decode token (fn [token] "can't be a string")) => (throws java.lang.IllegalArgumentException))))
+        
 (facts "about opentoken decoding"
   (fact "aes-128 tokens can be decoded"
     (let [{:keys [cipher key token]} (:aes-128 spec-data)]
@@ -66,26 +76,24 @@
   (fact "encoding and decoding are symmetric with a decoder key-decider"
     (let [password "Secr1t"
           token (encode test-payload-map password)]
-      (decode token (fn [key-info] {:password password})) => test-payload-map))
+      (decode token (fn [key-info] password)) => test-payload-map))
   (fact "encoding and decoding are symmetric with a decoder password as a string param"
     (let [password "Secr1t"
           token (encode test-payload-map password)]
       (decode token password) => test-payload-map)))
-              
-          
           
 (deftest public-api-test
   (testing "Encoding and decoding the tokens with a password through the public API"
     (let [password "password"
           token1 (encode test-payload-map password)
-          key-decider (fn [token-map] {:password password})
+          key-decider (fn [token-map] password)
           output (decode token1 key-decider)]
       (is (= output test-payload-map))))
   
   (testing "Encoding and decoding the tokens with a key through the public API"
     (let [key (b64-decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
           token1 (encode test-payload-map key)
-          key-decider (fn [key-info] {:key key})
+          key-decider (fn [key-info] key)
           output (decode token1 key-decider)]
       (is (= output test-payload-map))))
 
@@ -94,7 +102,7 @@
           key-info (.getBytes "use the password" "UTF-8") ; must be binary
           token1 (encode test-payload-map password :key-info key-info)
           key-info-output (atom nil)
-          key-decider (fn [token] (reset! key-info-output (:key-info token)) {:password password})
+          key-decider (fn [token] (reset! key-info-output (:key-info token)) password)
           _ (decode token1 key-decider)]
       (is (and (not (nil? @key-info-output))
                (= (seq key-info) (seq @key-info-output)))))))
