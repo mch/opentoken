@@ -5,8 +5,8 @@
   (:use midje.sweet))
 
 ;; TODO
-;; - tests for large payloads, above 256 bytes
-;; - tests for wrong passwords
+;; - tests for large payloads, above 256 bytes, above 65536 bytes
+;; - code clean up
 
 ;; Data from the spec at http://tools.ietf.org/html/draft-smith-opentoken-02
 ;; This data appears to be broken. The header is PTK instead of OTK.

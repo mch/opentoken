@@ -10,6 +10,10 @@
 ;;; - Reduce structural duplication
 ;;; - Move everything except the public API defs to mch.opentoken.encryption and so on.
 ;;; - Use streams to reduce copying, or some other method more suitable to functional composition. 
+;;; - Profile and see if there is any performance optimization to be done.
+;;; - Validate input maps for proper characters
+;;; - Encrypted payload size handling. Make sure that encrypted payloads larger than 256 bytes works,
+;;;   and that payloads larger than 65536 result in an error.
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
 (defn create-hmac [key-bytes version suite iv key-info encrypted-payload-length cleartext-payload]
