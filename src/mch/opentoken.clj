@@ -12,8 +12,10 @@
 ;;; - Use streams to reduce copying, or some other method more suitable to functional composition. 
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
-(defn create-hmac [version suite iv key-info encrypted-payload-length cleartext-payload]
-  (let [digester (java.security.MessageDigest/getInstance "SHA-1")]
+(defn create-hmac [key-bytes version suite iv key-info encrypted-payload-length cleartext-payload]
+  (let [digester (javax.crypto.Mac/getInstance "HmacSHA1") ;; SunJCE
+        key-spec (javax.crypto.spec.SecretKeySpec. key-bytes "AES")] ;; or DES?
+    (.init digester key-spec)
     (.update digester (byte version))
     (.update digester (byte suite))
     (if-not (nil? iv)
@@ -22,11 +24,12 @@
     (if-not (nil? key-info)
       (if (= (type key-info) (type (byte-array 0)))
         (.update digester key-info)))
-    (.update digester
-             (.array (gloss.io/contiguous
-                      (gloss.io/encode payload-len-codec {:payload-len encrypted-payload-length}))))
+    ;; The spec says to include the payload length in the HMAC, but...
+    ;; (.update digester
+    ;;          (.array (gloss.io/contiguous
+    ;;                   (gloss.io/encode payload-len-codec {:payload-len encrypted-payload-length}))))
     (.update digester (if (string? cleartext-payload) (.getBytes cleartext-payload "utf-8") cleartext-payload))
-    (.digest digester)))
+    (.doFinal digester)))
 
 (defn token-valid? [token]
   "Validates OTK literal and version. TODO validate IV length and cipher suite"
@@ -35,9 +38,10 @@
        (>= 3 (:cipher-suite token))
        (<= 0 (:cipher-suite token))))
 
-(defn hmac-valid? [token cleartext]
+(defn hmac-valid? [key-bytes token cleartext]
   "Validates OpenToken HMAC."
-  (let [hmac (create-hmac (:version token)
+  (let [hmac (create-hmac key-bytes
+                          (:version token)
                           (:cipher-suite token)
                           (:iv token)
                           (:key-info token)
@@ -99,8 +103,10 @@ Keyword arguments:
               (if (byte-array? password-or-key-decider)
                 {:key password-or-key-decider}
                 (throw (java.lang.IllegalArgumentException. "A string password or byte-array key is required."))))
-            cleartext (decrypt-token dt :password password :key key)]
-        (if (and (nil? skip-hmac-check) (not (hmac-valid? dt cleartext)))
+            cipher-suite ({0 :none 1 :aes-256 2 :aes-128 3 :3des-168} (:cipher-suite dt))
+            key-bytes (if (nil? key) (make-key cipher-suite password nil) key)
+            cleartext (decrypt-token dt :key key-bytes)]
+        (if (and (nil? skip-hmac-check) (not (hmac-valid? key-bytes dt cleartext)))
           {:status :invalid-hmac} ;; throw exception?
           (string-to-map (String. cleartext "UTF-8")))))))
 
@@ -126,10 +132,10 @@ Keyword arguments:
   (let [cleartext-payload (map-to-string payload)
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
         password (if (string? password-or-key) password-or-key nil)
-        key (if (byte-array? password-or-key) password-or-key nil)
-        encryptor (fn [payload] (encrypt payload :cipher cipher :password password :key key :iv iv))
+        key-bytes (if (byte-array? password-or-key) password-or-key (make-key cipher password nil))
+        encryptor (fn [payload] (encrypt payload :cipher cipher :key key-bytes :iv iv))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
-        hmac (create-hmac opentoken-version (cipher cipher-suites) iv nil (count ciphertext) cleartext-payload)
+        hmac (create-hmac key-bytes opentoken-version (cipher cipher-suites) iv nil (count ciphertext) cleartext-payload)
         bin (create-frame opentoken-version (cipher cipher-suites) hmac iv key-info ciphertext)
         b64token (String. (b64-encode bin) "UTF-8")]
     (make-cookie-safe b64token)))

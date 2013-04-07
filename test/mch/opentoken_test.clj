@@ -168,7 +168,8 @@
 
 (deftest hmac-test
   (testing "Changing hmac inputs changes hmac"
-    (let [version1 1
+    (let [key-bytes (byte-array 16 (byte 0))
+          version1 1
           version2 2
           suite1 1
           suite2 2
@@ -182,18 +183,18 @@
           enc-payload-len2 257
           text1 "yay"
           text2 "boo"]
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
-                (create-hmac version2 suite1 iv1 key-info1 enc-payload-len1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
-                (create-hmac version1 suite2 iv1 key-info1 enc-payload-len1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
-                (create-hmac version1 suite1 iv2 key-info1 enc-payload-len1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
-                (create-hmac version1 suite1 iv1 key-info2 enc-payload-len1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
-                (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text2)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
-                (create-hmac version1 suite1 iv1 key-info1 enc-payload-len2 text1)))))) 
+      (is (not= (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac key-bytes version2 suite1 iv1 key-info1 enc-payload-len1 text1)))
+      (is (not= (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac key-bytes version1 suite2 iv1 key-info1 enc-payload-len1 text1)))
+      (is (not= (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac key-bytes version1 suite1 iv2 key-info1 enc-payload-len1 text1)))
+      (is (not= (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac key-bytes version1 suite1 iv1 key-info2 enc-payload-len1 text1)))
+      (is (not= (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text2)))
+      (is (not= (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac key-bytes version1 suite1 iv1 key-info1 enc-payload-len2 text1)))))) 
 
 (deftest validate-token-test
   (testing "token has valid header, version and cipher."
