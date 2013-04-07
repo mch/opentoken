@@ -24,6 +24,33 @@
 (def test-payload-map {"foo" ["bar"] "bar" ["baz"]})
 (def expected-cleartext "bar=baz\r\nfoo=bar\r\n")
 
+;; TODO: should these exceptions be opentoken specific?
+(facts "about encode arguments"
+  (fact "first argument must be a map"
+    (encode {"foo" "bar"} "password") => string?)
+  (fact "first argument must not be a string"
+    (encode "test" "password") => (throws java.lang.IllegalArgumentException))
+  (fact "second argument can be a byte-array"
+    (encode {"foo" "test"} (byte-array 32 (byte 0))) => string?)
+  (fact "second argument cannot be a map"
+    (encode {"test" "asfd"} {}) => (throws java.lang.IllegalArgumentException))
+  (fact "Cipher must be one of the enumerated cipher suites."
+    (encode test-payload-map "password" :cipher :not-a-cipher-suite) => (throws java.lang.IllegalArgumentException))
+  (fact "iv must be a byte array"
+    (encode test-payload-map "password" :iv "string") => (throws java.lang.IllegalArgumentException))
+  (fact "aes 256 iv must be 16 bytes long"
+    (encode test-payload-map "password" :iv (byte-array 15 (byte 0))) => (throws java.security.InvalidAlgorithmParameterException))
+  (fact "aes 128 iv must be 16 bytes long"
+    (encode test-payload-map "password" :cipher-suite :aes-128 :iv (byte-array 15 (byte 0))) => (throws java.security.InvalidAlgorithmParameterException))
+  (fact "3DES 168 iv must be 16 bytes long"
+    (encode test-payload-map "password" :cipher-suite :3des-168 :iv (byte-array 15 (byte 0))) => (throws java.security.InvalidAlgorithmParameterException))
+  (fact "key-info can be nil"
+    (encode test-payload-map "password" :key-info nil) => string?)
+  (fact "key-info can be a byte-array"
+    (encode test-payload-map "password" :key-info (byte-array 12 (byte 0))) => string?)
+  (fact "key-info can only be nil or a byte-array, not a string."
+    (encode test-payload-map "password" :key-info "the password is password") => (throws java.lang.IllegalArgumentException)))
+
 (facts "about opentoken decoding"
   (fact "aes-128 tokens can be decoded"
     (let [{:keys [cipher key token]} (:aes-128 spec-data)]
