@@ -171,18 +171,6 @@
       (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
                 (create-hmac version1 suite1 iv1 key-info1 enc-payload-len2 text1)))))) 
 
-(deftest create-frame-test
-  (testing "binary frame creation"
-    ))
-
-(deftest cookie-safe-test
-  (testing "replacing b64 padding to make it cookie-safe"
-    (let [input "234ads==="
-          safe (make-cookie-safe input)
-          output (revert-cookie-safety safe)]
-      (is (= "234ads***" safe))
-      (is (= output input)))))
-          
 (deftest validate-token-test
   (testing "token has valid header, version and cipher."
     (let [cleartext "foo=bar\r\nbar=baz\r\n"

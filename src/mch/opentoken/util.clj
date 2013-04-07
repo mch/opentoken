@@ -25,9 +25,22 @@ used to separate items."
     (reduce rfn {} pairs)))
 
 (defn b64-decode [s]
+  "Decode a string or array using Base64 encoding via Apache Commons Codec"
   (org.apache.commons.codec.binary.Base64/decodeBase64 s))
 
 (defn b64-encode [ba]
+  "Encode a string or array using Base64 encoding via Apache Commons Codec"
   (org.apache.commons.codec.binary.Base64/encodeBase64 ba))
 
-(defn byte-array? [o] (instance? (Class/forName "[B") o))
+(defn byte-array? [o]
+  "Returns true if an object is a byte array"
+  (instance? (Class/forName "[B") o))
+
+(defn make-cookie-safe [s]
+  "Makes a string cookie safe by changing = to *"
+  (apply str (map #(if (= \= %) \* %) s)))
+
+(defn revert-cookie-safety [s]
+  "Reverts cookie safety by changing * to ="
+  (apply str (map #(if (= \* %) \= %) s)))
+

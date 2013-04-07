@@ -24,3 +24,12 @@
 
 (facts "string-to-map handles \n separate items"
   (fact (string-to-map "foo=bar\nbifur=bofur") => {"foo" ["bar"] "bifur" ["bofur"]}))
+
+(deftest cookie-safe-test
+  (testing "replacing b64 padding to make it cookie-safe"
+    (let [input "234ads==="
+          safe (make-cookie-safe input)
+          output (revert-cookie-safety safe)]
+      (is (= "234ads***" safe))
+      (is (= output input)))))
+          
