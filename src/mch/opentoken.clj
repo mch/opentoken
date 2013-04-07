@@ -28,22 +28,6 @@
     (.update digester (if (string? cleartext-payload) (.getBytes cleartext-payload "utf-8") cleartext-payload))
     (.digest digester)))
 
-(defn deflate [input]
-  (let [out (java.io.ByteArrayOutputStream.)
-        deflater (java.util.zip.DeflaterOutputStream. out)]
-    (doto deflater
-      (.write input 0 (count input))
-      (.close))
-    (.toByteArray out)))
-
-(defn inflate [input]
-  (let [out (java.io.ByteArrayOutputStream.)
-        inflater (java.util.zip.InflaterOutputStream. out)]
-    (doto inflater
-      (.write input 0 (count input))
-      (.close))
-    (.toByteArray out)))
-
 (defn token-valid? [token]
   "Validates OTK literal and version. TODO validate IV length and cipher suite"
   (and (= opentoken-version (:version token))

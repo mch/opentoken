@@ -131,17 +131,6 @@
           output (decrypt-token token :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8"))))))
 
-(deftest deflate-test
-  (testing "DEFLATE"
-    (let [input "Visiting is pretty, visiting is cool, foo fighters are awesome"
-          input-b (.getBytes input "UTF-8")
-          deflated (deflate input-b)
-          inflated (inflate deflated)
-          output (String. inflated "UTF-8")]
-      (is (= input output))
-      (is (= (seq input-b) (seq inflated)))
-      (is (not (= input-b deflated))))))
-      
 (deftest hmac-test
   (testing "Changing hmac inputs changes hmac"
     (let [version1 1

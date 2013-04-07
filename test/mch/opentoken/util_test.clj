@@ -33,3 +33,14 @@
       (is (= "234ads***" safe))
       (is (= output input)))))
           
+(deftest deflate-test
+  (testing "DEFLATE"
+    (let [input "Visiting is pretty, visiting is cool, foo fighters are awesome"
+          input-b (.getBytes input "UTF-8")
+          deflated (deflate input-b)
+          inflated (inflate deflated)
+          output (String. inflated "UTF-8")]
+      (is (= input output))
+      (is (= (seq input-b) (seq inflated)))
+      (is (not (= input-b deflated))))))
+      

@@ -44,3 +44,21 @@ used to separate items."
   "Reverts cookie safety by changing * to ="
   (apply str (map #(if (= \* %) \= %) s)))
 
+(defn deflate [input]
+  "Deflate a byte-array."
+  (let [out (java.io.ByteArrayOutputStream.)
+        deflater (java.util.zip.DeflaterOutputStream. out)]
+    (doto deflater
+      (.write input 0 (count input))
+      (.close))
+    (.toByteArray out)))
+
+(defn inflate [input]
+  "Inflate a byte-array."
+  (let [out (java.io.ByteArrayOutputStream.)
+        inflater (java.util.zip.InflaterOutputStream. out)]
+    (doto inflater
+      (.write input 0 (count input))
+      (.close))
+    (.toByteArray out)))
+
