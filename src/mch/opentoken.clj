@@ -104,7 +104,6 @@ Keyword arguments:
           {:status :invalid-hmac} ;; throw exception?
           (string-to-map (String. cleartext "UTF-8")))))))
 
-;; TODO use the same key-decider function as decode? Nice symmetry that way.
 ;; TODO catch and rethrow exceptions?
 (defn encode [payload password-or-key & {:keys [cipher iv key-info] :or {cipher :aes-256 iv nil key-info nil}}]
   "Encodes a map as an encrypted OpenToken. If the second argument is a string, it is treated as a password.
