@@ -34,7 +34,7 @@
 (gloss.core/defcodec payload-len-codec payload-len-frame)
 
 ;; updating should be equivalent to creating a single byte-array and doing it all at once. 
-(defn create-hmac [version suite iv key-info cleartext-payload]
+(defn create-hmac [version suite iv key-info encrypted-payload-length cleartext-payload]
   (let [digester (java.security.MessageDigest/getInstance "SHA-1")]
     (.update digester (byte version))
     (.update digester (byte suite))
@@ -46,7 +46,7 @@
         (.update digester key-info)))
     (.update digester
              (.array (gloss.io/contiguous
-                      (gloss.io/encode payload-len-codec {:payload-len (count cleartext-payload)}))))
+                      (gloss.io/encode payload-len-codec {:payload-len encrypted-payload-length}))))
     (.update digester (if (string? cleartext-payload) (.getBytes cleartext-payload "utf-8") cleartext-payload))
     (.digest digester)))
 
@@ -138,19 +138,22 @@ containing the decrypted text."
                       :key key
                       :iv (:iv t)))))
 
-(defn decode [token key-decider]
+(defn decode [token key-decider & rest]
   "Decodes an OpenToken supplied as a string. Calls the key-decider
 function with a map containing the token, from which the :cipher-suite
 and :key-info items should be used to identify the key to use. The
 key-decider function must return a map containing either a :password
 or a :key. Returns a map of the key value pairs that were stored in the token."
-  (let [dt (decode-token token)] ;; catch gloss exceptions and rethrow OpenToken specific ones?
-    (if-not (token-valid? dt)
+  (let [dt (decode-token token) ;; catch gloss exceptions and rethrow OpenToken specific ones?
+        skip-token-check (some #{:skip-token-check} rest)
+        skip-hmac-check (some #{:skip-hmac-check} rest)]
+    (println "token: " dt)
+    (if (and (nil? skip-token-check) (not (token-valid? dt)))
       {:status :invalid-token} ;; throw exception?
       (let [{:keys [password key] :or {password nil key nil}}
             (key-decider dt)
             cleartext (decrypt-token dt :password password :key key)]
-        (if-not (hmac-valid? dt cleartext)
+        (if (and (nil? skip-hmac-check) (not (hmac-valid? dt cleartext)))
           {:status :invalid-hmac} ;; throw exception?
           (string-to-map (String. cleartext "UTF-8")))))))
 
@@ -166,7 +169,7 @@ or a :key. Returns a map of the key value pairs that were stored in the token."
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
         encryptor (fn [payload] (encrypt payload :cipher cipher :password password :key key :iv iv))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
-        hmac (create-hmac opentoken-version (cipher cipher-suites) iv nil cleartext-payload)
+        hmac (create-hmac opentoken-version (cipher cipher-suites) iv nil (count ciphertext) cleartext-payload)
         bin (create-frame opentoken-version (cipher cipher-suites) hmac iv key-info ciphertext)
         b64token (String. (b64-encode bin) "UTF-8")]
     (make-cookie-safe b64token)))

@@ -24,6 +24,17 @@
 (def test-payload-map {"foo" ["bar"] "bar" ["baz"]})
 (def expected-cleartext "bar=baz\r\nfoo=bar\r\n")
 
+(facts "about opentoken decoding"
+  (fact "aes-128 tokens can be decoded"
+    (let [{:keys [cipher key token]} (:aes-128 spec-data)]
+      (decode token (fn [x] {:key (b64-decode key)}) :skip-token-check :skip-hmac-check) => test-payload-map))
+  (fact "aes-256 tokens can be decoded"
+    (let [{:keys [cipher key token]} (:aes-256 spec-data)]
+      (decode token (fn [x] {:key (b64-decode key)}) :skip-token-check :skip-hmac-check) => test-payload-map))
+  (fact "DES tokens can be decoded"
+    (let [{:keys [cipher key token]} (:3des-168 spec-data)]
+      (decode token (fn [x] {:key (b64-decode key)}) :skip-token-check :skip-hmac-check) => test-payload-map)))
+
 (deftest public-api-test
   (testing "Encoding and decoding the tokens with a password through the public API"
     (let [password "password"
@@ -131,18 +142,22 @@
           key-info1 (byte-array 3 (byte 2))
           key-info2 (byte-array 3 (byte 4))
           key-info3 nil
+          enc-payload-len1 255
+          enc-payload-len2 257
           text1 "yay"
           text2 "boo"]
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 text1)
-                (create-hmac version2 suite1 iv1 key-info1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 text1)
-                (create-hmac version1 suite2 iv1 key-info1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 text1)
-                (create-hmac version1 suite1 iv2 key-info1 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 text1)
-                (create-hmac version1 suite1 iv1 key-info2 text1)))
-      (is (not= (create-hmac version1 suite1 iv1 key-info1 text1)
-                (create-hmac version1 suite1 iv1 key-info1 text2))))))
+      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac version2 suite1 iv1 key-info1 enc-payload-len1 text1)))
+      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac version1 suite2 iv1 key-info1 enc-payload-len1 text1)))
+      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac version1 suite1 iv2 key-info1 enc-payload-len1 text1)))
+      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac version1 suite1 iv1 key-info2 enc-payload-len1 text1)))
+      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text2)))
+      (is (not= (create-hmac version1 suite1 iv1 key-info1 enc-payload-len1 text1)
+                (create-hmac version1 suite1 iv1 key-info1 enc-payload-len2 text1)))))) 
 
 (deftest create-frame-test
   (testing "binary frame creation"
