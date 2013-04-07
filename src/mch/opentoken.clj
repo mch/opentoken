@@ -100,6 +100,7 @@
                           (:cipher-suite token)
                           (:iv token)
                           (:key-info token)
+                          (count (:payload token))
                           cleartext)]
     (= (seq hmac) (seq (:hmac token)))))
 
@@ -160,14 +161,22 @@ or a :key. Returns a map of the key value pairs that were stored in the token."
 
 ;; TODO use the same key-decider function as decode? Nice symmetry that way.
 ;; TODO catch and rethrow exceptions?
-(defn encode [payload & {:keys [cipher password key iv key-info] :or {cipher :aes-256 password nil key nil iv nil key-info nil}}]
-  "Encodes a map as an encrypted OpenToken. One of :password or :key must be supplied."
+(defn encode [payload password-or-key & {:keys [cipher iv key-info] :or {cipher :aes-256 iv nil key-info nil}}]
+  "Encodes a map as an encrypted OpenToken. If the second argument is a string, it is treated as a password.
+If it is a byte-array, it is treated as an encryption key.
+
+Keyword arguments:
+ - :cipher, value is one of :none, :aes-128, :aes-256, or :3des-168.
+ - :iv, an intermediate value to use in the cipher.
+ - :key-info, a byte-array that will be carried in plain text in the token."
   (if-not (map? payload)
     (throw (java.lang.IllegalArgumentException. "Payload must be a map.")))
   (if-not (contains? cipher-suites cipher)
     (throw (java.lang.IllegalArgumentException. "Cipher must be one of :none, :aes-256, :aes-128, or :3des-168.")))
   (let [cleartext-payload (map-to-string payload)
         compressed-cleartext (deflate (.getBytes cleartext-payload "utf-8"))
+        password (if (string? password-or-key) password-or-key nil)
+        key (if (byte-array? password-or-key) password-or-key nil)
         encryptor (fn [payload] (encrypt payload :cipher cipher :password password :key key :iv iv))
         {:keys [ciphertext iv]} (encryptor compressed-cleartext)
         hmac (create-hmac opentoken-version (cipher cipher-suites) iv nil (count ciphertext) cleartext-payload)

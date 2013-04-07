@@ -36,13 +36,13 @@
       (decode token (fn [x] {:key (b64-decode key)}) :skip-token-check :skip-hmac-check) => test-payload-map)))
 
 (facts "about the public api"
-  (fact "encoding and decoding are symmetric with a password as a keyword param"
+  (fact "encoding and decoding are symmetric with a decoder key-decider"
     (let [password "Secr1t"
-          token (encode test-payload-map :password password)]
+          token (encode test-payload-map password)]
       (decode token (fn [key-info] {:password password})) => test-payload-map))
-  (fact "encoding and decoding are symmetric with a password as a string param"
+  (fact "encoding and decoding are symmetric with a decoder password as a string param"
     (let [password "Secr1t"
-          token (encode test-payload-map :password password)]
+          token (encode test-payload-map password)]
       (decode token password) => test-payload-map)))
               
           
@@ -50,14 +50,14 @@
 (deftest public-api-test
   (testing "Encoding and decoding the tokens with a password through the public API"
     (let [password "password"
-          token1 (encode test-payload-map :password password)
+          token1 (encode test-payload-map password)
           key-decider (fn [token-map] {:password password})
           output (decode token1 key-decider)]
       (is (= output test-payload-map))))
   
   (testing "Encoding and decoding the tokens with a key through the public API"
     (let [key (b64-decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
-          token1 (encode test-payload-map :key key)
+          token1 (encode test-payload-map key)
           key-decider (fn [key-info] {:key key})
           output (decode token1 key-decider)]
       (is (= output test-payload-map))))
@@ -65,7 +65,7 @@
   (testing "Using the key-info to decide what key to use"
     (let [password "password"
           key-info (.getBytes "use the password" "UTF-8") ; must be binary
-          token1 (encode test-payload-map :password password :key-info key-info)
+          token1 (encode test-payload-map password :key-info key-info)
           key-info-output (atom nil)
           key-decider (fn [token] (reset! key-info-output (:key-info token)) {:password password})
           _ (decode token1 key-decider)]
@@ -76,7 +76,7 @@
   (testing "AES-128 encode - decode"
     (let [cipher :aes-128
           key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
-          token (encode test-payload-map :key key :cipher cipher)
+          token (encode test-payload-map key :cipher cipher)
           output (decrypt-token token  :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8")))))
 
@@ -86,10 +86,10 @@
   (testing "AES-128 same IV, same token, different IV, different token"
     (let [cipher :aes-128
           key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
-          token1 (encode test-payload-map :key key :cipher cipher)
-          token2 (encode test-payload-map :key key :cipher cipher)
+          token1 (encode test-payload-map key :cipher cipher)
+          token2 (encode test-payload-map key :cipher cipher)
           iv (:iv (decode-token token1))
-          token3 (encode test-payload-map :key key :cipher cipher :iv iv)
+          token3 (encode test-payload-map key :cipher cipher :iv iv)
           output (decrypt-token token1  :key key :cipher cipher)]
       (is (= token1 token3))
       (is (not= token1 token2))))
@@ -99,25 +99,25 @@
           key1 (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+w==" "UTF-8"))
           key2 (byte-array key1)
           _ (aset-byte key2 0 106)
-          token1 (encode test-payload-map :key key1 :cipher cipher)
+          token1 (encode test-payload-map key1 :cipher cipher)
           iv (:iv (decode-token token1))
-          token2 (encode test-payload-map :key key2 :cipher cipher :iv iv)]
+          token2 (encode test-payload-map key2 :cipher cipher :iv iv)]
       (is (not= token1 token2))))
 
   (testing "AES-128 different password, different token"
       (let [cipher :aes-128
             password1 "1234"
             password2 "5678"
-            token1 (encode test-payload-map :password password1 :cipher cipher)
+            token1 (encode test-payload-map password1 :cipher cipher)
             iv (:iv (decode-token token1))
-            token2 (encode test-payload-map :password password2 :cipher cipher :iv iv)]
+            token2 (encode test-payload-map password2 :cipher cipher :iv iv)]
         (is (not= token1 token2)))))
 
 (deftest aes-256
   (testing "AES-256 decoding"
     (let [cipher :aes-256
           key (b64-decode (.getBytes (:key (:aes-256 spec-data)) "UTF-8"))
-          token (encode test-payload-map :key key :cipher cipher)
+          token (encode test-payload-map key :cipher cipher)
           tamper-token (apply str "A" (rest token))
           output (decrypt-token token  :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8"))))))
@@ -126,7 +126,7 @@
   (testing "DES-168 decoding"
     (let [cipher :3des-168
           key (b64-decode (.getBytes (:key (:3des-168 spec-data)) "UTF-8"))
-          token (encode test-payload-map :key key :cipher cipher)
+          token (encode test-payload-map key :cipher cipher)
           tamper-token (apply str "A" (rest token))
           output (decrypt-token token :key key :cipher cipher)]
       (is (= expected-cleartext (String. output "UTF-8"))))))
@@ -187,7 +187,7 @@
   (testing "token has valid header, version and cipher."
     (let [cleartext "foo=bar\r\nbar=baz\r\n"
           key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
-          token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))
+          token (decode-token (encode {"foo" "bar" "bar" "baz"} key))
           broken-version (assoc token :version 0)
           broken-header (assoc token :otk "PTK")
           broken-cipher (assoc token :cipher-suite 4)]
@@ -200,7 +200,7 @@
   (testing "token has correct hmac"
     (let [cleartext "bar=baz\r\nfoo=bar\r\n"
           key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
-          token (decode-token (encode {"foo" "bar" "bar" "baz"} :key key))]
+          token (decode-token (encode {"foo" "bar" "bar" "baz"} key))]
       (is (hmac-valid? token cleartext))
       (is (not (hmac-valid? token (str cleartext "A")))))))
 

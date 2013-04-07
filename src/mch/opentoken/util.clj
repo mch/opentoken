@@ -30,3 +30,4 @@ used to separate items."
 (defn b64-encode [ba]
   (org.apache.commons.codec.binary.Base64/encodeBase64 ba))
 
+(defn byte-array? [o] (instance? (Class/forName "[B") o))
