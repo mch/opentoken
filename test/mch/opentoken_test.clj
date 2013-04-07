@@ -35,6 +35,18 @@
     (let [{:keys [cipher key token]} (:3des-168 spec-data)]
       (decode token (fn [x] {:key (b64-decode key)}) :skip-token-check :skip-hmac-check) => test-payload-map)))
 
+(facts "about the public api"
+  (fact "encoding and decoding are symmetric with a password as a keyword param"
+    (let [password "Secr1t"
+          token (encode test-payload-map :password password)]
+      (decode token (fn [key-info] {:password password})) => test-payload-map))
+  (fact "encoding and decoding are symmetric with a password as a string param"
+    (let [password "Secr1t"
+          token (encode test-payload-map :password password)]
+      (decode token password) => test-payload-map)))
+              
+          
+          
 (deftest public-api-test
   (testing "Encoding and decoding the tokens with a password through the public API"
     (let [password "password"

@@ -138,7 +138,7 @@ containing the decrypted text."
                       :key key
                       :iv (:iv t)))))
 
-(defn decode [token key-decider & rest]
+(defn decode [token password-or-key-decider & rest]
   "Decodes an OpenToken supplied as a string. Calls the key-decider
 function with a map containing the token, from which the :cipher-suite
 and :key-info items should be used to identify the key to use. The
@@ -147,11 +147,12 @@ or a :key. Returns a map of the key value pairs that were stored in the token."
   (let [dt (decode-token token) ;; catch gloss exceptions and rethrow OpenToken specific ones?
         skip-token-check (some #{:skip-token-check} rest)
         skip-hmac-check (some #{:skip-hmac-check} rest)]
-    (println "token: " dt)
     (if (and (nil? skip-token-check) (not (token-valid? dt)))
       {:status :invalid-token} ;; throw exception?
       (let [{:keys [password key] :or {password nil key nil}}
-            (key-decider dt)
+            (if (ifn? password-or-key-decider)
+              (password-or-key-decider dt)
+              {:password password-or-key-decider})
             cleartext (decrypt-token dt :password password :key key)]
         (if (and (nil? skip-hmac-check) (not (hmac-valid? dt cleartext)))
           {:status :invalid-hmac} ;; throw exception?
