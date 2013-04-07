@@ -64,13 +64,13 @@
 (facts "about opentoken decoding"
   (fact "aes-128 tokens can be decoded"
     (let [{:keys [cipher key token]} (:aes-128 spec-data)]
-      (decode token (b64-decode key) :skip-token-check :skip-hmac-check) => test-payload-map))
+      (decode token (b64-decode key) :skip-token-check) => test-payload-map))
   (fact "aes-256 tokens can be decoded"
     (let [{:keys [cipher key token]} (:aes-256 spec-data)]
-      (decode token (b64-decode key) :skip-token-check :skip-hmac-check) => test-payload-map))
+      (decode token (b64-decode key) :skip-token-check) => test-payload-map))
   (fact "DES tokens can be decoded"
     (let [{:keys [cipher key token]} (:3des-168 spec-data)]
-      (decode token (b64-decode key) :skip-token-check :skip-hmac-check) => test-payload-map)))
+      (decode token (b64-decode key) :skip-token-check) => test-payload-map)))
 
 (facts "about the public api"
   (fact "encoding and decoding are symmetric with a decoder key-decider"
@@ -214,6 +214,7 @@
     (let [cleartext "bar=baz\r\nfoo=bar\r\n"
           key (b64-decode (.getBytes "a66C9MvM8eY4qJKyCXKW+19PWDeuc3thDyuiumak+Dc=" "UTF-8"))
           token (decode-token (encode {"foo" "bar" "bar" "baz"} key))]
-      (is (hmac-valid? token cleartext))
-      (is (not (hmac-valid? token (str cleartext "A")))))))
+      (is (hmac-valid? key token cleartext))
+      (is (not (hmac-valid? key token (str cleartext "A")))))))
+
 
