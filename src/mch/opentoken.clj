@@ -153,7 +153,9 @@ or a :key. Returns a map of the key value pairs that were stored in the token."
       (let [{:keys [password key] :or {password nil key nil}}
             (if (ifn? password-or-key-decider)
               (password-or-key-decider dt)
-              {:password password-or-key-decider})
+              (if (string? password-or-key-decider)
+                {:password password-or-key-decider}
+                {:key password-or-key-decider}))  ;; throw if it's not actually a byte-array?
             cleartext (decrypt-token dt :password password :key key)]
         (if (and (nil? skip-hmac-check) (not (hmac-valid? dt cleartext)))
           {:status :invalid-hmac} ;; throw exception?
